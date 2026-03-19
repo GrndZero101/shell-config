@@ -1,0 +1,1 @@
+# Reference profile logout hook.

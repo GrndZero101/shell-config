@@ -1,0 +1,41 @@
+# Percent-encode a query string for OMZ compatibility.
+# Arguments:
+#   $1 - Optional -P flag to encode spaces as %20 instead of +.
+#   $@ - Remaining text to encode.
+# Returns:
+#   0 after writing the encoded string to stdout.
+omz_urlencode() {
+  emulate -L zsh
+
+  local encode_spaces_as_percent='0'
+  local input encoded char codepoint
+
+  if [[ "${1:-}" == '-P' ]]; then
+    encode_spaces_as_percent='1'
+    shift
+  fi
+
+  input="${(j: :)@}"
+  encoded=''
+
+  for char in ${(s::)input}; do
+    case "${char}" in
+      [a-zA-Z0-9.~_-])
+        encoded+="${char}"
+        ;;
+      ' ')
+        if [[ "${encode_spaces_as_percent}" == '1' ]]; then
+          encoded+='%20'
+        else
+          encoded+='+'
+        fi
+        ;;
+      *)
+        printf -v codepoint '%02X' "'${char}"
+        encoded+="%${codepoint}"
+        ;;
+    esac
+  done
+
+  print -r -- "${encoded}"
+}

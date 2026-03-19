@@ -1,0 +1,5 @@
+#autoload
+
+emulate -L zsh
+
+command git branch --show-current 2>/dev/null

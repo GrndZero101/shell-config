@@ -1,0 +1,9 @@
+#autoload
+
+emulate -L zsh
+
+local selected
+
+selected="$(fh)" || return 0
+BUFFER="${selected#*[0-9]  }"
+CURSOR=${#BUFFER}

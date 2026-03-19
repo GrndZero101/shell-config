@@ -1,0 +1,5 @@
+#autoload
+
+emulate -L zsh
+
+"${ZDOTDIR:h}/scripts/csm" select "$@"

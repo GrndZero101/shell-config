@@ -1,0 +1,10 @@
+#autoload
+
+emulate -L zsh
+
+local depth="${1:-1}"
+
+while (( depth > 0 )); do
+  builtin cd ..
+  (( depth-- ))
+done

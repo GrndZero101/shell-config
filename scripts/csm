@@ -1,0 +1,1269 @@
+#!/usr/bin/env zsh
+
+# Config Shell Manager.
+# Manages bootstrap, profile selection, and maintenance tasks for this repo.
+# Keep this script zsh-native, predictable, and safe for direct user invocation.
+
+emulate -LR zsh
+setopt errexit nounset pipefail
+
+typeset -gU path PATH
+path=(
+  /usr/bin
+  /bin
+  /usr/local/bin
+  /opt/homebrew/bin
+  ${path}
+)
+
+typeset -gr SCRIPT_DIR="${${(%):-%N}:A:h}"
+typeset -gr SHELL_CONFIG_ROOT="${SCRIPT_DIR:h}"
+typeset -gr TARGET_ZSHENV="${SHELL_CONFIG_ROOT}/.zshenv"
+typeset -gr TARGET_CSM="${SCRIPT_DIR}/csm"
+typeset -gr HOME_ZSHENV="${HOME}/.zshenv"
+typeset -gr LOCAL_BIN_DIR="${HOME}/.local/bin"
+typeset -gr LOCAL_CSM="${LOCAL_BIN_DIR}/csm"
+typeset -gr SHELL_CONFIG_STATE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config"
+typeset -gr SHELL_CONFIG_STATE_FILE="${SHELL_CONFIG_STATE_DIR}/active-profile"
+typeset -gr SHELL_PROFILE_STATE_ROOT="${XDG_STATE_HOME:-${HOME}/.local/state}/shell-config"
+typeset -gr SHELL_PROFILE_CACHE_ROOT="${XDG_CACHE_HOME:-${HOME}/.cache}/shell-config"
+typeset -gr SHELL_PROFILE_DATA_ROOT="${XDG_DATA_HOME:-${HOME}/.local/share}/shell-config"
+typeset -gr SHELL_PROFILE_RUNTIME_BASE="${${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}%/}"
+typeset -gr SHELL_PROFILE_RUNTIME_ROOT="${SHELL_PROFILE_RUNTIME_BASE}/shell-config-${UID:-$(id -u)}"
+typeset -gr CATPPUCCIN_FORTRESS_EZA_URL='https://raw.githubusercontent.com/eza-community/eza-themes/main/themes/catppuccin-mocha.yml'
+typeset -gr CATPPUCCIN_FORTRESS_EZA_DEST="${SHELL_CONFIG_ROOT}/zsh-tll-citadel-dev-fortress/config/eza/theme.yml"
+typeset -gr CATPPUCCIN_FORTRESS_ATUIN_URL='https://raw.githubusercontent.com/catppuccin/atuin/main/themes/mocha/catppuccin-mocha-mauve.toml'
+typeset -gr CATPPUCCIN_FORTRESS_ATUIN_DEST="${SHELL_CONFIG_ROOT}/zsh-tll-citadel-dev-fortress/config/atuin/themes/catppuccin-mocha-mauve.toml"
+typeset -gr FORTRESS_ZINIT_REPO_URL='https://github.com/zdharma-continuum/zinit.git'
+typeset -gr FORTRESS_ZINIT_HOME="${SHELL_PROFILE_DATA_ROOT}/zsh-tll-citadel-dev-fortress/zinit/zinit.git"
+typeset -gr REF_FZFTAB_REPO_URL='https://github.com/Aloxaf/fzf-tab.git'
+typeset -gr REF_FZFTAB_HOME="${SHELL_PROFILE_DATA_ROOT}/zsh-ref-fzftab/fzf-tab/fzf-tab"
+
+#
+# Print the command-line help text for the manager.
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing usage information to stdout.
+usage() {
+  cat <<'EOF'
+Usage: csm <command>
+
+Commands:
+  bootstrap  Install ~/.zshenv and ~/.local/bin/csm as symlinks to this repository
+  install-fzf-tab  Install the official fzf-tab repository for the reference profile
+  install-zinit  Install the fortress zinit plugin manager into profile-local data
+  select     Choose a shell profile and exec a fresh zsh, optionally with --clean or a direct profile name
+  init-settings  Create a profile settings file from its template in the user's XDG config directory
+  edit-settings  Ensure a profile settings file exists, then open it in \$VISUAL or \$EDITOR
+  check      Validate profile contract files and zsh syntax
+  debug-fzf-tab  Print environment and completion diagnostics for fzf-tab troubleshooting
+  clean      Remove generated cache files such as zcompdump data
+  clear-history  Clear zsh history for the current profile or all profiles
+  sync-catppuccin  Refresh vendored Catppuccin theme assets for supported tools
+EOF
+}
+
+#
+# Print the baseline executable search path used for clean profile switches.
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing a colon-separated PATH string to stdout.
+clean_switch_path() {
+  local -a candidate_paths resolved_paths
+
+  candidate_paths=(
+    /home/linuxbrew/.linuxbrew/bin
+    /home/linuxbrew/.linuxbrew/sbin
+    /opt/homebrew/bin
+    /opt/homebrew/sbin
+    /usr/local/bin
+    /usr/local/sbin
+    /usr/bin
+    /bin
+    /usr/sbin
+    /sbin
+  )
+
+  resolved_paths=(${^candidate_paths}(N-/))
+  print -r -- "${(j.:.)resolved_paths}"
+}
+
+#
+# Print the list of profile directory names managed by this repository.
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing profile names to stdout, one per line.
+available_profiles() {
+  local -a profiles
+
+  profiles=(${SHELL_CONFIG_ROOT}/zsh-*(N-/))
+  print -r -l -- ${profiles:t}
+}
+
+#
+# Load the contract variables for a profile into the current function scope.
+# Arguments:
+#   $1 - Profile directory name such as zsh-clean.
+# Returns:
+#   0 on success, non-zero if the profile does not exist.
+# Side effects:
+#   Populates local contract variables with defaults and optional overrides from profile.zsh.
+load_profile_contract() {
+  local profile_name="${1}"
+  local profile_file="${SHELL_CONFIG_ROOT}/${profile_name}/profile.zsh"
+
+  SHELL_PROFILE_NAME="${profile_name}"
+  SHELL_PROFILE_DESCRIPTION=''
+  SHELL_PROFILE_HISTORY_MODE='profile'
+
+  is_known_profile "${profile_name}" || return 1
+
+  if [[ -r "${profile_file}" ]]; then
+    source "${profile_file}"
+  fi
+}
+
+#
+# Print the persistent state directory for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_state_dir() {
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  load_profile_contract "${1}" || return 1
+  print -r -- "${SHELL_PROFILE_STATE_ROOT}/${SHELL_PROFILE_NAME}"
+}
+
+#
+# Print the cache directory for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_cache_dir() {
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  load_profile_contract "${1}" || return 1
+  print -r -- "${SHELL_PROFILE_CACHE_ROOT}/${SHELL_PROFILE_NAME}"
+}
+
+#
+# Print the data directory for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_data_dir() {
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  load_profile_contract "${1}" || return 1
+  print -r -- "${SHELL_PROFILE_DATA_ROOT}/${SHELL_PROFILE_NAME}"
+}
+
+#
+# Print the runtime directory for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_runtime_dir() {
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  load_profile_contract "${1}" || return 1
+  print -r -- "${SHELL_PROFILE_RUNTIME_ROOT}/${SHELL_PROFILE_NAME}"
+}
+
+#
+# Print the configured history file path for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_history_file() {
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  load_profile_contract "${1}" || return 1
+
+  case "${SHELL_PROFILE_HISTORY_MODE}" in
+    shared)
+      print -r -- "${SHELL_PROFILE_STATE_ROOT}/shared/history"
+      ;;
+    *)
+      print -r -- "${SHELL_PROFILE_STATE_ROOT}/${SHELL_PROFILE_NAME}/history"
+      ;;
+  esac
+}
+
+#
+# Print the repository-managed settings template path for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 after writing the template path when present, non-zero otherwise.
+profile_settings_template() {
+  local profile_name="${1}"
+  local template_path="${SHELL_CONFIG_ROOT}/${profile_name}/config/settings.example.zsh"
+
+  is_known_profile "${profile_name}" || return 1
+  [[ -r "${template_path}" ]] || return 1
+  print -r -- "${template_path}"
+}
+
+#
+# Print the user-owned XDG settings file path for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_settings_file() {
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  load_profile_contract "${1}" || return 1
+  print -r -- "${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config.local/${SHELL_PROFILE_NAME}/settings.zsh"
+}
+
+#
+# Render a human-readable contract summary for one profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+# Side effects:
+#   Writes a formatted profile summary to stdout for terminal previews.
+describe_profile() {
+  local profile_name="${1}"
+  local current_profile=''
+  local history_file cache_dir runtime_dir state_dir status_label settings_file settings_template
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  is_known_profile "${profile_name}" || return 1
+  load_profile_contract "${profile_name}" || return 1
+
+  state_dir="$(profile_state_dir "${profile_name}")"
+  cache_dir="$(profile_cache_dir "${profile_name}")"
+  runtime_dir="$(profile_runtime_dir "${profile_name}")"
+  history_file="$(profile_history_file "${profile_name}")"
+  current_profile="$(current_profile_name 2>/dev/null || true)"
+  status_label='available'
+
+  if [[ "${profile_name}" == "${current_profile}" ]]; then
+    status_label='current'
+  fi
+
+  print -P -- "%F{81}%BProfile%b%f  ${SHELL_PROFILE_NAME}"
+  print -P -- "%F{244}${SHELL_PROFILE_DESCRIPTION:-No description provided.}%f"
+  print
+  print -P -- "%F{110}Status:%f       ${status_label}"
+  print -P -- "%F{110}History mode:%f ${SHELL_PROFILE_HISTORY_MODE}"
+  print -P -- "%F{110}History file:%f ${history_file}"
+  print
+  print -P -- "%F{110}State dir:%f    ${state_dir}"
+  print -P -- "%F{110}Cache dir:%f    ${cache_dir}"
+  print -P -- "%F{110}Runtime dir:%f  ${runtime_dir}"
+  if settings_file="$(profile_settings_file "${profile_name}" 2>/dev/null)"; then
+    print -P -- "%F{110}Settings file:%f ${settings_file}"
+  fi
+  if settings_template="$(profile_settings_template "${profile_name}" 2>/dev/null)"; then
+    print -P -- "%F{110}Settings template:%f ${settings_template}"
+  fi
+  print
+  print -P -- "%F{244}Enter to switch profile. Esc to cancel.%f"
+}
+
+#
+# Resolve which profile a profile-settings command should target.
+# Arguments:
+#   $1 - Optional profile directory name.
+# Returns:
+#   0 after writing the resolved profile name, non-zero on ambiguity or invalid input.
+# Side effects:
+#   Writes guidance to stderr on invalid usage.
+resolve_settings_profile() {
+  local requested_profile="${1:-}"
+  local resolved_profile=''
+  local -a profiles
+
+  if [[ -n "${requested_profile}" ]]; then
+    if ! is_known_profile "${requested_profile}"; then
+      profiles=(${(f)"$(available_profiles)"})
+      print -u2 -- "settings: unknown profile: ${requested_profile}"
+      print -u2 -- "settings: available profiles: ${(j:, :)profiles}"
+      return 1
+    fi
+
+    resolved_profile="${requested_profile}"
+  else
+    resolved_profile="$(current_profile_name 2>/dev/null || true)"
+    if [[ -z "${resolved_profile}" ]]; then
+      print -u2 -- 'settings: no profile argument provided and current profile could not be determined'
+      print -u2 -- 'settings: pass a profile name such as zsh-tll-citadel-dev-fortress'
+      return 1
+    fi
+  fi
+
+  print -r -- "${resolved_profile}"
+}
+
+#
+# Create a profile settings file from its tracked template when it is missing.
+# Arguments:
+#   $1 - Optional profile directory name. Defaults to the current profile when detectable.
+# Returns:
+#   0 on success, non-zero on invalid usage or missing template.
+# Side effects:
+#   Creates directories and copies the tracked template into the user's XDG config directory.
+init_settings() {
+  emulate -L zsh
+
+  local profile_name settings_file template_file
+
+  if (( $# > 1 )); then
+    print -u2 -- "error: unexpected arguments for init-settings: $*"
+    print -u2 -- 'usage: csm init-settings [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${1:-}")" || return 1
+  settings_file="$(profile_settings_file "${profile_name}")" || return 1
+
+  if ! template_file="$(profile_settings_template "${profile_name}" 2>/dev/null)"; then
+    print -u2 -- "init-settings: ${profile_name} does not provide a settings template"
+    return 1
+  fi
+
+  mkdir -p -- "${settings_file:h}"
+
+  if [[ -e "${settings_file}" ]]; then
+    print -- "init-settings: settings file already exists: ${settings_file}"
+    return 0
+  fi
+
+  cp -- "${template_file}" "${settings_file}"
+  print -- "init-settings: created ${settings_file}"
+}
+
+#
+# Ensure a profile settings file exists and open it in the user's configured editor.
+# Arguments:
+#   $1 - Optional profile directory name. Defaults to the current profile when detectable.
+# Returns:
+#   0 on success, non-zero on invalid usage, missing template, or missing editor.
+# Side effects:
+#   May create the settings file and then exec the configured editor command.
+edit_settings() {
+  emulate -L zsh
+
+  local profile_name settings_file editor_command
+  local -a editor_argv
+
+  if (( $# > 1 )); then
+    print -u2 -- "error: unexpected arguments for edit-settings: $*"
+    print -u2 -- 'usage: csm edit-settings [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${1:-}")" || return 1
+  init_settings "${profile_name}" || return 1
+  settings_file="$(profile_settings_file "${profile_name}")" || return 1
+  editor_command="${VISUAL:-${EDITOR:-}}"
+
+  if [[ -z "${editor_command}" ]]; then
+    print -u2 -- 'edit-settings: no editor configured'
+    print -u2 -- "edit-settings: set VISUAL or EDITOR, then edit ${settings_file}"
+    return 1
+  fi
+
+  print -- "edit-settings: opening ${settings_file}"
+  editor_argv=(${(z)editor_command})
+  "${editor_argv[@]}" "${settings_file}"
+}
+
+#
+# Append an environment assignment when a variable is set in the current shell.
+# Arguments:
+#   $1 - Variable name to inspect and preserve.
+# Returns:
+#   0 after conditionally printing a NAME=value assignment.
+append_clean_env_if_set() {
+  local variable_name="${1}"
+
+  if (( ${+parameters[${variable_name}]} )) && [[ -n "${(P)variable_name}" ]]; then
+    print -r -- "${variable_name}=${(P)variable_name}"
+  fi
+}
+
+#
+# Print a formatted validation result line.
+# Arguments:
+#   $1 - Result status: pass, fail, or warn.
+#   $2 - Human-readable message to display.
+# Returns:
+#   0 after writing the formatted line to stdout.
+print_check_result() {
+  local result_status="${1}"
+  local message="${2}"
+
+  case "${result_status}" in
+    pass)
+      print -P -- "%F{114}✔%f ${message}"
+      ;;
+    fail)
+      print -P -- "%F{203}✘%f ${message}"
+      ;;
+    warn)
+      print -P -- "%F{221}⚠%f ${message}"
+      ;;
+  esac
+}
+
+#
+# Check whether a profile name maps to a real profile directory.
+# Arguments:
+#   $1 - Profile directory name such as zsh-clean.
+# Returns:
+#   0 when the profile exists, non-zero otherwise.
+is_known_profile() {
+  local profile_name="${1}"
+
+  [[ -n "${profile_name}" ]] || return 1
+  [[ -d "${SHELL_CONFIG_ROOT}/${profile_name}" ]]
+}
+
+#
+# Resolve the current active profile name conservatively.
+# Arguments:
+#   None.
+# Returns:
+#   0 and prints the current profile name on success, non-zero on ambiguity.
+# Side effects:
+#   Writes guidance to stderr when the current profile cannot be determined.
+current_profile_name() {
+  local profile_name=""
+
+  if [[ -n "${ZDOTDIR:-}" && "${ZDOTDIR:h}" == "${SHELL_CONFIG_ROOT}" ]]; then
+    profile_name="${ZDOTDIR:t}"
+  elif [[ -n "${SHELL_CONFIG_PROFILE:-}" ]]; then
+    profile_name="${SHELL_CONFIG_PROFILE}"
+  fi
+
+  if ! is_known_profile "${profile_name}"; then
+    print -u2 -- 'clear-history: unable to determine the current profile'
+    print -u2 -- 'clear-history: set SHELL_CONFIG_PROFILE or run from a shell started by this config'
+    return 1
+  fi
+
+  print -r -- "${profile_name}"
+}
+
+#
+# Install the shared selector and command entrypoints into the user's home.
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero if required files are missing or linking fails.
+# Side effects:
+#   Creates ~/.zshenv, ~/.local/bin/csm, and backup files when replacing existing paths.
+bootstrap() {
+  local backup_path current_target
+
+  install_symlink "${TARGET_ZSHENV}" "${HOME_ZSHENV}" 'bootstrap'
+  mkdir -p -- "${LOCAL_BIN_DIR}"
+  install_symlink "${TARGET_CSM}" "${LOCAL_CSM}" 'bootstrap'
+
+  if [[ ":${PATH}:" != *":${LOCAL_BIN_DIR}:"* ]]; then
+    print -- "bootstrap: warning ${LOCAL_BIN_DIR} is not currently on PATH"
+  fi
+
+  print -- "bootstrap: set SHELL_CONFIG_PROFILE before launching zsh if you want a profile other than zsh-clean"
+}
+
+#
+# Safely replace a target path with a symlink to a repository-managed source.
+# Arguments:
+#   $1 - Source path inside the repository.
+#   $2 - Target path to install for the user.
+#   $3 - Log label used in status messages.
+# Returns:
+#   0 on success, non-zero if the source is missing or filesystem operations fail.
+# Side effects:
+#   Moves existing targets to timestamped backups before linking.
+install_symlink() {
+  local source_path="${1}"
+  local target_path="${2}"
+  local label="${3}"
+
+  if [[ ! -e "${source_path}" ]]; then
+    print -u2 -- "error: expected source file at ${source_path}"
+    return 1
+  fi
+
+  if [[ -L "${target_path}" ]]; then
+    current_target=$(readlink "${target_path}" || true)
+    if [[ "${current_target}" == "${source_path}" ]]; then
+      print -- "${label}: ${target_path} already points to ${source_path}"
+      return 0
+    fi
+  fi
+
+  if [[ -e "${target_path}" || -L "${target_path}" ]]; then
+    backup_path="${target_path}.backup.$(date +%Y%m%d%H%M%S)"
+    mv -- "${target_path}" "${backup_path}"
+    print -- "${label}: moved existing ${target_path} to ${backup_path}"
+  fi
+
+  ln -s -- "${source_path}" "${target_path}"
+  print -- "${label}: linked ${target_path} -> ${source_path}"
+}
+
+#
+# Re-enter zsh using the selected profile and switch mode.
+# Arguments:
+#   $1 - Selected profile directory name.
+#   $2 - Switch mode: normal or clean.
+# Returns:
+#   Does not normally return on success because it execs a new zsh process.
+# Side effects:
+#   Updates the saved active-profile file and replaces the current shell process.
+switch_to_profile() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local switch_mode="${2}"
+  local env_binary zsh_binary
+  local variable_name
+  local -a clean_exec_env_assignments
+  local -a preserved_variables
+
+  mkdir -p -- "${SHELL_CONFIG_STATE_DIR}"
+  printf '%s\n' "${profile_name}" >| "${SHELL_CONFIG_STATE_FILE}"
+
+  if [[ "${switch_mode}" == 'clean' ]]; then
+    clean_exec_env_assignments=(
+      "HOME=${HOME}"
+      "PATH=$(clean_switch_path)"
+      "PWD=${PWD:-${HOME}}"
+      "SHELL_CONFIG_PROFILE=${profile_name}"
+    )
+
+    preserved_variables=(
+      USER
+      LOGNAME
+      SHELL
+      TERM
+      COLORTERM
+      LANG
+      LC_ALL
+      LC_CTYPE
+      LC_MESSAGES
+      TZ
+      DISPLAY
+      WAYLAND_DISPLAY
+      XAUTHORITY
+      SSH_AUTH_SOCK
+      SSH_AGENT_PID
+      GPG_AGENT_INFO
+      GPG_TTY
+      XDG_CONFIG_HOME
+      XDG_CACHE_HOME
+      XDG_STATE_HOME
+      XDG_RUNTIME_DIR
+      TMPDIR
+      TMP
+      TEMP
+      EDITOR
+      VISUAL
+      PAGER
+      MANPAGER
+      BROWSER
+    )
+
+    for variable_name in "${preserved_variables[@]}"; do
+      local assignment=""
+      assignment="$(append_clean_env_if_set "${variable_name}")"
+      if [[ -n "${assignment}" ]]; then
+        clean_exec_env_assignments+=("${assignment}")
+      fi
+    done
+
+    env_binary="$(whence -p env)"
+    zsh_binary="$(whence -p zsh)"
+    exec "${env_binary}" -i "${clean_exec_env_assignments[@]}" "${zsh_binary}"
+  fi
+
+  export SHELL_CONFIG_PROFILE="${profile_name}"
+  unset ZDOTDIR
+  exec zsh
+}
+
+#
+# Choose a profile, persist it, and re-enter zsh.
+# Arguments:
+#   $@ - Optional flags parsed with zparseopts. Supports --clean and an optional profile name.
+# Returns:
+#   Does not normally return on success because it execs a new zsh process.
+# Side effects:
+#   Updates the saved active-profile file and replaces the current shell process.
+select_profile() {
+  emulate -L zsh
+
+  local current_profile selected requested_profile profile switch_mode mode_label
+  local -a opt_clean
+  local -a profiles
+
+  zparseopts -D -E -- -clean=opt_clean || return 1
+
+  if (( $# > 1 )); then
+    print -u2 -- "error: unexpected arguments for select: $*"
+    print -u2 -- 'usage: csm select [--clean] [profile]'
+    return 1
+  fi
+
+  switch_mode='normal'
+  mode_label='normal'
+  if (( ${#opt_clean} > 0 )); then
+    switch_mode='clean'
+    mode_label='clean'
+  fi
+
+  requested_profile="${1:-}"
+
+  profiles=(${(f)"$(available_profiles)"})
+  if (( ${#profiles} == 0 )); then
+    print -u2 -- 'csm select: no profile directories found'
+    return 1
+  fi
+
+  if [[ -n "${requested_profile}" ]]; then
+    if ! is_known_profile "${requested_profile}"; then
+      print -u2 -- "csm select: unknown profile: ${requested_profile}"
+      print -u2 -- "csm select: available profiles: ${(j:, :)profiles}"
+      return 1
+    fi
+
+    switch_to_profile "${requested_profile}" "${switch_mode}"
+  fi
+
+  current_profile="$(current_profile_name 2>/dev/null || true)"
+
+  # Prefer fzf when present, but keep a native zsh fallback for minimal profiles.
+  if (( $+commands[fzf] )); then
+    selected=$(
+      printf '%s\n' "${profiles[@]}" | fzf \
+        --ansi \
+        --border \
+        --height=55% \
+        --layout=reverse \
+        --prompt='profile> ' \
+        --header="󰒓 CSM Profile Selector  mode:${mode_label}  current:${current_profile:-none}" \
+        --preview="${TARGET_CSM} describe-profile {}" \
+        --preview-window='right:60%:wrap'
+    ) || return 1
+  else
+    print -- 'fzf not found; using zsh select menu.'
+    select profile in "${profiles[@]}"; do
+      if [[ -n "${profile}" ]]; then
+        selected="${profile}"
+        break
+      fi
+      print -u2 -- 'Invalid selection.'
+    done
+  fi
+
+  [[ -n "${selected}" ]] || return 1
+
+  switch_to_profile "${selected}" "${switch_mode}"
+}
+
+#
+# Validate the repository contract and startup files without mutating anything.
+# Arguments:
+#   None.
+# Returns:
+#   0 when all checks pass, non-zero if any validation fails.
+# Side effects:
+#   Writes a validation report to stdout and stderr.
+check_configuration() {
+  emulate -L zsh
+
+  local profile_name script_path
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+  local -i failures=0
+  local -i passes=0
+  local -a profiles required_profile_files syntax_paths
+  local -A seen_profile_names
+
+  profiles=(${(f)"$(available_profiles)"})
+  required_profile_files=(profile.zsh .zprofile .zshrc .zlogin .zlogout)
+  syntax_paths=(
+    "${SHELL_CONFIG_ROOT}/.zshenv"
+    "${SHELL_CONFIG_ROOT}/shared/path.zsh"
+    "${TARGET_CSM}"
+  )
+
+  print -P -- "%F{81}%B󰒓 CSM Check%b%f"
+  print -P -- "%F{244}Validating shell contract, required files, and zsh syntax.%f"
+  print
+
+  for script_path in "${syntax_paths[@]}"; do
+    if [[ -e "${script_path}" ]]; then
+      if zsh -n "${script_path}" >/dev/null 2>&1; then
+        print_check_result pass "syntax ok: ${script_path:t}"
+        (( passes++ ))
+      else
+        print_check_result fail "syntax failed: ${script_path}"
+        (( failures++ ))
+      fi
+    else
+      print_check_result fail "missing required file: ${script_path}"
+      (( failures++ ))
+    fi
+  done
+
+  if (( ${#profiles} == 0 )); then
+    print_check_result fail 'no profile directories found'
+    (( failures++ ))
+  fi
+
+  for profile_name in "${profiles[@]}"; do
+    print
+    print -P -- "%F{81}%BProfile%b%f ${profile_name}"
+
+    for script_path in "${required_profile_files[@]}"; do
+      if [[ -e "${SHELL_CONFIG_ROOT}/${profile_name}/${script_path}" ]]; then
+        print_check_result pass "required file present: ${profile_name}/${script_path}"
+        (( passes++ ))
+      else
+        print_check_result fail "missing required file: ${profile_name}/${script_path}"
+        (( failures++ ))
+      fi
+    done
+
+    local -a profile_syntax_paths
+    profile_syntax_paths=(
+      "${SHELL_CONFIG_ROOT}/${profile_name}/profile.zsh"
+      "${SHELL_CONFIG_ROOT}/${profile_name}/.zprofile"
+      "${SHELL_CONFIG_ROOT}/${profile_name}/.zshrc"
+      "${SHELL_CONFIG_ROOT}/${profile_name}/.zlogin"
+      "${SHELL_CONFIG_ROOT}/${profile_name}/.zlogout"
+      ${SHELL_CONFIG_ROOT}/${profile_name}/config/**/*.zsh(N)
+      ${SHELL_CONFIG_ROOT}/${profile_name}/functions/*(N-.)
+    )
+
+    for script_path in "${profile_syntax_paths[@]}"; do
+      if [[ ! -e "${script_path}" ]]; then
+        continue
+      fi
+
+      if zsh -n "${script_path}" >/dev/null 2>&1; then
+        print_check_result pass "syntax ok: ${script_path#${SHELL_CONFIG_ROOT}/}"
+        (( passes++ ))
+      else
+        print_check_result fail "syntax failed: ${script_path#${SHELL_CONFIG_ROOT}/}"
+        (( failures++ ))
+      fi
+    done
+
+    if load_profile_contract "${profile_name}"; then
+      if [[ "${SHELL_PROFILE_NAME}" == "${profile_name}" ]]; then
+        print_check_result pass "contract name matches directory: ${SHELL_PROFILE_NAME}"
+        (( passes++ ))
+      else
+        print_check_result fail "contract name mismatch: ${profile_name} != ${SHELL_PROFILE_NAME}"
+        (( failures++ ))
+      fi
+
+      if [[ -n "${SHELL_PROFILE_DESCRIPTION}" ]]; then
+        print_check_result pass "description present"
+        (( passes++ ))
+      else
+        print_check_result warn "description missing"
+      fi
+
+      case "${SHELL_PROFILE_HISTORY_MODE}" in
+        profile|shared)
+          print_check_result pass "history mode valid: ${SHELL_PROFILE_HISTORY_MODE}"
+          (( passes++ ))
+          ;;
+        *)
+          print_check_result fail "invalid history mode: ${SHELL_PROFILE_HISTORY_MODE}"
+          (( failures++ ))
+          ;;
+      esac
+
+      if [[ -n "${seen_profile_names[${SHELL_PROFILE_NAME}]:-}" ]]; then
+        print_check_result fail "duplicate contract name: ${SHELL_PROFILE_NAME}"
+        (( failures++ ))
+      else
+        seen_profile_names[${SHELL_PROFILE_NAME}]=1
+      fi
+    else
+      print_check_result fail "unable to load contract for ${profile_name}"
+      (( failures++ ))
+    fi
+  done
+
+  print
+  if (( failures == 0 )); then
+    print -P -- "%F{114}%BCheck passed%b%f ${passes} validation(s) succeeded."
+    return 0
+  fi
+
+  print -P -- "%F{203}%BCheck failed%b%f ${failures} issue(s) found, ${passes} validation(s) succeeded."
+  return 1
+}
+
+#
+# Remove generated cache and compiled files from profile directories.
+# Arguments:
+#   None.
+# Returns:
+#   0 whether files were removed or nothing needed cleanup.
+# Side effects:
+#   Deletes generated files such as .zcompdump, .zcompcache, and .zwc artifacts.
+clean_generated_files() {
+  emulate -L zsh
+
+  local file_path profile_name
+  local removed=0
+  local -a paths
+  local -a profiles
+
+  profiles=(${(f)"$(available_profiles)"})
+  paths=(
+    ${SHELL_CONFIG_ROOT}/zsh-*/.zcompdump(N)
+    ${SHELL_CONFIG_ROOT}/zsh-*/.zcompdump-*(N)
+    ${SHELL_CONFIG_ROOT}/zsh-*/.zcompcache(N/)
+    ${SHELL_CONFIG_ROOT}/zsh-*/**/*.zwc(N)
+  )
+
+  for profile_name in "${profiles[@]}"; do
+    paths+=(
+      "$(profile_cache_dir "${profile_name}")"/.zcompdump(N)
+      "$(profile_cache_dir "${profile_name}")"/.zcompdump-*(N)
+      "$(profile_cache_dir "${profile_name}")"/zcompcache(N/)
+      "$(profile_cache_dir "${profile_name}")"/**/*.zwc(N)
+      "$(profile_runtime_dir "${profile_name}")"(N/)
+    )
+  done
+
+  if (( ${#paths} == 0 )); then
+    print -- 'clean: nothing to remove'
+    return 0
+  fi
+
+  for file_path in "${paths[@]}"; do
+    if [[ -d "${file_path}" ]]; then
+      rm -rf -- "${file_path}"
+    else
+      rm -f -- "${file_path}"
+    fi
+    print -- "clean: removed ${file_path}"
+    removed=1
+  done
+
+  (( removed )) || print -- 'clean: nothing to remove'
+}
+
+#
+# Clear zsh history files for the current profile or for every profile.
+# Arguments:
+#   $@ - Optional flags parsed with zparseopts. Supports --all.
+# Returns:
+#   0 on success, non-zero on invalid arguments or profile detection failure.
+# Side effects:
+#   Truncates history files inside profile directories.
+clear_history() {
+  emulate -L zsh
+
+  local history_file profile_name
+  local removed=0
+  local -A seen_history_files
+  local -a opt_all profiles history_files
+
+  # Parse long options natively so argument handling stays explicit and auditable.
+  zparseopts -D -E -- -all=opt_all || return 1
+
+  if (( $# != 0 )); then
+    print -u2 -- "error: unexpected arguments for clear-history: $*"
+    print -u2 -- 'usage: csm clear-history [--all]'
+    return 1
+  fi
+
+  if (( ${#opt_all} > 0 )); then
+    profiles=(${(f)"$(available_profiles)"})
+  else
+    profiles=($(current_profile_name)) || return 1
+  fi
+
+  for profile_name in "${profiles[@]}"; do
+    history_files=(
+      "$(profile_history_file "${profile_name}")"
+    )
+
+    for history_file in "${history_files[@]}"; do
+      [[ -n "${history_file}" ]] || continue
+      if [[ -n "${seen_history_files[${history_file}]:-}" ]]; then
+        continue
+      fi
+      seen_history_files[${history_file}]=1
+
+      if [[ -e "${history_file}" ]]; then
+        : >| "${history_file}"
+        print -- "clear-history: cleared ${history_file}"
+        removed=1
+      fi
+    done
+  done
+
+  if (( ! removed )); then
+    if (( ${#opt_all} > 0 )); then
+      print -- 'clear-history: no history files found in any profile'
+    else
+      print -- "clear-history: no history files found for ${profiles[1]}"
+    fi
+  fi
+}
+
+#
+# Install zinit into the fortress profile-local data directory.
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero if git is unavailable or clone/pull fails.
+# Side effects:
+#   Clones or updates the zinit git repository inside the fortress data directory.
+install_zinit() {
+  emulate -L zsh
+
+  if ! (( $+commands[git] )); then
+    print -u2 -- 'install-zinit: git is required'
+    return 1
+  fi
+
+  mkdir -p -- "${FORTRESS_ZINIT_HOME:h}"
+
+  if [[ -d "${FORTRESS_ZINIT_HOME}/.git" ]]; then
+    git -C "${FORTRESS_ZINIT_HOME}" pull --ff-only
+    print -- "install-zinit: updated ${FORTRESS_ZINIT_HOME}"
+    return 0
+  fi
+
+  git clone --depth 1 "${FORTRESS_ZINIT_REPO_URL}" "${FORTRESS_ZINIT_HOME}"
+  print -- "install-zinit: installed zinit -> ${FORTRESS_ZINIT_HOME}"
+}
+
+#
+# Install the official fzf-tab repository into the reference profile-local data directory.
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero if git is unavailable or clone/pull fails.
+# Side effects:
+#   Clones or updates the fzf-tab git repository for zsh-ref-fzftab.
+install_fzf_tab_reference() {
+  emulate -L zsh
+
+  if ! (( $+commands[git] )); then
+    print -u2 -- 'install-fzf-tab: git is required'
+    return 1
+  fi
+
+  mkdir -p -- "${REF_FZFTAB_HOME:h}"
+
+  if [[ -d "${REF_FZFTAB_HOME}/.git" ]]; then
+    git -C "${REF_FZFTAB_HOME}" pull --ff-only
+    print -- "install-fzf-tab: updated ${REF_FZFTAB_HOME}"
+    return 0
+  fi
+
+  git clone --depth 1 "${REF_FZFTAB_REPO_URL}" "${REF_FZFTAB_HOME}"
+  print -- "install-fzf-tab: installed fzf-tab -> ${REF_FZFTAB_HOME}"
+}
+
+#
+# Download a URL into a destination file using an available fetch tool.
+# Arguments:
+#   $1 - Source URL.
+#   $2 - Destination file path.
+# Returns:
+#   0 on success, non-zero if no fetch tool is available or the download fails.
+# Side effects:
+#   Writes the downloaded payload to the destination path.
+download_file() {
+  local source_url="${1}"
+  local destination_path="${2}"
+
+  if (( $+commands[curl] )); then
+    curl -fsSL --retry 3 --output "${destination_path}" "${source_url}"
+    return $?
+  fi
+
+  if (( $+commands[wget] )); then
+    wget -q -O "${destination_path}" "${source_url}"
+    return $?
+  fi
+
+  print -u2 -- 'sync-catppuccin: need curl or wget to fetch upstream assets'
+  return 1
+}
+
+#
+# Refresh vendored Catppuccin assets from their upstream sources.
+# Arguments:
+#   $@ - Optional asset names. Supports atuin, eza, or all. Defaults to all.
+# Returns:
+#   0 on success, non-zero on invalid arguments or download failure.
+# Side effects:
+#   Replaces vendored theme assets inside the repository with freshly downloaded copies.
+sync_catppuccin_assets() {
+  emulate -L zsh
+
+  local asset source_url destination_path temp_path
+  local -a requested_assets resolved_assets
+
+  requested_assets=("$@")
+  if (( ${#requested_assets} == 0 )); then
+    requested_assets=(all)
+  fi
+
+  for asset in "${requested_assets[@]}"; do
+    case "${asset}" in
+      all)
+        resolved_assets+=(atuin eza)
+        ;;
+      atuin)
+        resolved_assets+=("${asset}")
+        ;;
+      eza)
+        resolved_assets+=("${asset}")
+        ;;
+      *)
+        print -u2 -- "sync-catppuccin: unknown asset: ${asset}"
+        print -u2 -- 'usage: csm sync-catppuccin [all|atuin|eza]'
+        return 1
+        ;;
+    esac
+  done
+
+  resolved_assets=(${(u)resolved_assets})
+
+  for asset in "${resolved_assets[@]}"; do
+    case "${asset:l}" in
+      atuin)
+        source_url="${CATPPUCCIN_FORTRESS_ATUIN_URL}"
+        destination_path="${CATPPUCCIN_FORTRESS_ATUIN_DEST}"
+        ;;
+      eza)
+        source_url="${CATPPUCCIN_FORTRESS_EZA_URL}"
+        destination_path="${CATPPUCCIN_FORTRESS_EZA_DEST}"
+        ;;
+    esac
+
+    mkdir -p -- "${destination_path:h}"
+    temp_path="$(mktemp "${TMPDIR:-/tmp}/csm-catppuccin-${asset:l}.XXXXXX")" || return 1
+
+    if ! download_file "${source_url}" "${temp_path}"; then
+      rm -f -- "${temp_path}"
+      print -u2 -- "sync-catppuccin: failed to refresh ${asset:l} from ${source_url}"
+      return 1
+    fi
+
+    mv -- "${temp_path}" "${destination_path}"
+    print -- "sync-catppuccin: refreshed ${asset:l} -> ${destination_path}"
+  done
+}
+
+#
+# Print a focused environment report for fzf-tab troubleshooting.
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing diagnostics to stdout.
+# Side effects:
+#   Runs read-only inspection commands such as zsh --version and bindkey.
+debug_fzf_tab() {
+  emulate -L zsh
+
+  local profile_name='unknown'
+  local tab_binding='unavailable'
+  local current_widget='unavailable'
+  local terminfo_tab='unset'
+  local brew_prefix='unavailable'
+  local zsh_version_output='unavailable'
+  local fzf_version_output='missing'
+  local fzf_binary='missing'
+  local zstyle_menu='unset'
+  local zstyle_description='unset'
+  local zstyle_fzf_command='unset'
+  local zstyle_fzf_flags='unset'
+  local zstyle_show_group='unset'
+  local zstyle_use_default='unset'
+  local zstyle_prefix='unset'
+  local -a option_names
+  local option_name option_value
+  local -a global_zsh_files
+  local global_file
+
+  profile_name="$(current_profile_name 2>/dev/null || print -r -- "${SHELL_CONFIG_PROFILE:-unknown}")"
+  zsh_version_output="$(zsh --version 2>/dev/null || print -r -- 'unavailable')"
+
+  if (( $+commands[fzf] )); then
+    fzf_binary="${commands[fzf]}"
+    fzf_version_output="$(fzf --version 2>/dev/null || print -r -- 'unavailable')"
+  fi
+
+  if (( $+commands[brew] )); then
+    brew_prefix="$(brew --prefix 2>/dev/null || print -r -- 'unavailable')"
+  fi
+
+  tab_binding="$(bindkey '^I' 2>/dev/null | sed 's/^[[:space:]]*//')"
+  if (( $+widgets[fzf-tab-complete] )); then
+    current_widget='fzf-tab-complete'
+  elif [[ "${tab_binding}" == *'complete-word'* ]]; then
+    current_widget='complete-word'
+  fi
+
+  if (( ${+terminfo[kcbt]} )); then
+    terminfo_tab="${terminfo[kcbt]}"
+  fi
+
+  zstyle_menu="$(zstyle -L ':completion:*' menu 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g;s/[[:space:]]$//')"
+  zstyle_description="$(zstyle -L ':completion:*:descriptions' format 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g;s/[[:space:]]$//')"
+  zstyle_fzf_command="$(zstyle -L ':fzf-tab:*' fzf-command 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g;s/[[:space:]]$//')"
+  zstyle_fzf_flags="$(zstyle -L ':fzf-tab:*' fzf-flags 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g;s/[[:space:]]$//')"
+  zstyle_show_group="$(zstyle -L ':fzf-tab:*' show-group 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g;s/[[:space:]]$//')"
+  zstyle_use_default="$(zstyle -L ':fzf-tab:*' use-fzf-default-opts 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g;s/[[:space:]]$//')"
+  zstyle_prefix="$(zstyle -L ':fzf-tab:*' prefix 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g;s/[[:space:]]$//')"
+
+  option_names=(
+    automenu
+    autocomplete
+    menucomplete
+    autolist
+    listambiguous
+    completeinword
+    alwayslastprompt
+  )
+
+  global_zsh_files=(
+    /etc/zshenv
+    /etc/zprofile
+    /etc/zshrc
+    /etc/zlogin
+    /etc/zlogout
+  )
+
+  print -P -- "%F{81}%B󰒓 fzf-tab debug%b%f"
+  print
+  print -P -- "%F{110}Profile:%f        ${profile_name}"
+  print -P -- "%F{110}ZDOTDIR:%f        ${ZDOTDIR:-unset}"
+  print -P -- "%F{110}ZSH version:%f    ${zsh_version_output}"
+  print -P -- "%F{110}fzf binary:%f     ${fzf_binary}"
+  print -P -- "%F{110}fzf version:%f    ${fzf_version_output}"
+  print -P -- "%F{110}brew prefix:%f    ${brew_prefix}"
+  print
+  print -P -- "%F{110}OSTYPE:%f         ${OSTYPE:-unset}"
+  print -P -- "%F{110}uname -srm:%f     $(uname -srm 2>/dev/null || print -r -- 'unavailable')"
+  print -P -- "%F{110}TERM:%f           ${TERM:-unset}"
+  print -P -- "%F{110}COLORTERM:%f      ${COLORTERM:-unset}"
+  print -P -- "%F{110}TERM_PROGRAM:%f   ${TERM_PROGRAM:-unset}"
+  print -P -- "%F{110}terminfo[kcbt]:%f ${terminfo_tab}"
+  print
+  print -P -- "%F{110}Tab binding:%f    ${tab_binding}"
+  print -P -- "%F{110}Active widget:%f  ${current_widget}"
+  print -P -- "%F{110}fzf-tab widget:%f $(( $+widgets[fzf-tab-complete] ))"
+  print -P -- "%F{110}compinit fn:%f    $(( $+functions[compinit] ))"
+  print -P -- "%F{110}complete-word:%f  $(( $+widgets[complete-word] ))"
+  print
+  print -P -- "%F{110}completion menu:%f ${zstyle_menu}"
+  print -P -- "%F{110}descriptions:%f   ${zstyle_description}"
+  print -P -- "%F{110}fzf-command:%f    ${zstyle_fzf_command}"
+  print -P -- "%F{110}fzf-flags:%f      ${zstyle_fzf_flags}"
+  print -P -- "%F{110}show-group:%f     ${zstyle_show_group}"
+  print -P -- "%F{110}use-default:%f    ${zstyle_use_default}"
+  print -P -- "%F{110}prefix style:%f   ${zstyle_prefix}"
+  print
+  print -P -- "%F{110}Options:%f"
+  for option_name in "${option_names[@]}"; do
+    option_value="${options[${option_name}]:-unset}"
+    print -P -- "  ${option_name}: ${option_value}"
+  done
+  print
+  print -P -- "%F{110}fpath:%f"
+  print -r -l -- "${fpath[@]}"
+  print
+  print -P -- "%F{110}Global zsh files:%f"
+  for global_file in "${global_zsh_files[@]}"; do
+    if [[ -e "${global_file}" ]]; then
+      print -P -- "  present: ${global_file}"
+    else
+      print -P -- "  absent:  ${global_file}"
+    fi
+  done
+}
+
+#
+# Dispatch the requested subcommand and forward any remaining arguments.
+# Arguments:
+#   $1 - Subcommand name.
+#   $@ - Remaining arguments for the selected subcommand.
+# Returns:
+#   0 on success, non-zero for unknown commands or subcommand failures.
+main() {
+  local command="${1:-}"
+  shift $(( $# > 0 ? 1 : 0 ))
+
+  case "${command}" in
+    '')
+      usage
+      ;;
+    bootstrap)
+      bootstrap "$@"
+      ;;
+    install-fzf-tab)
+      install_fzf_tab_reference "$@"
+      ;;
+    install-zinit)
+      install_zinit "$@"
+      ;;
+    select)
+      select_profile "$@"
+      ;;
+    init-settings)
+      init_settings "$@"
+      ;;
+    edit-settings)
+      edit_settings "$@"
+      ;;
+    check)
+      check_configuration "$@"
+      ;;
+    debug-fzf-tab)
+      debug_fzf_tab "$@"
+      ;;
+    clean)
+      clean_generated_files "$@"
+      ;;
+    clear-history)
+      clear_history "$@"
+      ;;
+    sync-catppuccin)
+      sync_catppuccin_assets "$@"
+      ;;
+    describe-profile)
+      describe_profile "$@"
+      ;;
+    *)
+      print -u2 -- "error: unknown command: ${command}"
+      usage >&2
+      return 1
+      ;;
+  esac
+}
+
+main "$@"

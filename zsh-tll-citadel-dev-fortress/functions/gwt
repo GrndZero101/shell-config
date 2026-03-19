@@ -1,0 +1,5 @@
+#autoload
+
+emulate -L zsh
+
+command git worktree list "$@"

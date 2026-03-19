@@ -1,0 +1,28 @@
+# Open a URL or file with the host platform's default opener.
+# Arguments:
+#   $1 - URL or path to open.
+# Returns:
+#   0 on success, non-zero if no suitable opener is available.
+# Side effects:
+#   Launches an external opener such as open, xdg-open, or wslview.
+open_command() {
+  local target="${1}"
+
+  if (( $+commands[open] )); then
+    command open "${target}"
+    return $?
+  fi
+
+  if (( $+commands[wslview] )); then
+    command wslview "${target}"
+    return $?
+  fi
+
+  if (( $+commands[xdg-open] )); then
+    command xdg-open "${target}" >/dev/null 2>&1
+    return $?
+  fi
+
+  print -u2 -- 'open_command: no supported opener found (tried open, wslview, xdg-open)'
+  return 1
+}

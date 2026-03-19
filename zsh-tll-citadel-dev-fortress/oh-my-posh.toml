@@ -1,0 +1,153 @@
+# Citadel Oh My Posh prompt.
+# Based on the built-in powerlevel10k_modern structure and recolored for Catppuccin Mocha.
+
+"$schema" = "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json"
+version = 4
+final_space = true
+
+[palette]
+rosewater = "#f5e0dc"
+flamingo = "#f2cdcd"
+pink = "#f5c2e7"
+mauve = "#cba6f7"
+red = "#f38ba8"
+maroon = "#eba0ac"
+peach = "#fab387"
+yellow = "#f9e2af"
+green = "#a6e3a1"
+teal = "#94e2d5"
+sky = "#89dceb"
+sapphire = "#74c7ec"
+blue = "#89b4fa"
+lavender = "#b4befe"
+text = "#cdd6f4"
+subtext1 = "#bac2de"
+subtext0 = "#a6adc8"
+overlay2 = "#9399b2"
+overlay1 = "#7f849c"
+overlay0 = "#6c7086"
+surface2 = "#585b70"
+surface1 = "#45475a"
+surface0 = "#313244"
+base = "#1e1e2e"
+mantle = "#181825"
+crust = "#11111b"
+
+[transient_prompt]
+template = "❯ "
+foreground = "p:green"
+background = "transparent"
+
+[[blocks]]
+type = "prompt"
+alignment = "left"
+
+  [[blocks.segments]]
+  type = "os"
+  style = "diamond"
+  leading_diamond = ""
+  trailing_diamond = ""
+  foreground = "p:crust"
+  background = "p:mauve"
+  template = " {{ if .WSL }}WSL at {{ end }}{{ .Icon }} "
+
+  [[blocks.segments]]
+  type = "path"
+  style = "powerline"
+  powerline_symbol = ""
+  foreground = "p:crust"
+  background = "p:blue"
+  template = "  {{ .Path }} "
+
+    [blocks.segments.properties]
+    style = "agnoster_short"
+    max_depth = 3
+    folder_separator_icon = "/"
+    home_icon = "~"
+
+  [[blocks.segments]]
+  type = "git"
+  style = "powerline"
+  powerline_symbol = ""
+  foreground = "p:crust"
+  background = "p:yellow"
+  template = "  {{ .HEAD }}{{ if .BranchStatus }} {{ .BranchStatus }}{{ end }}{{ if or (.Working.Changed) (.Staging.Changed) }}{{ if .Working.Changed }}  {{ .Working.String }}{{ end }}{{ if .Staging.Changed }}  {{ .Staging.String }}{{ end }}{{ end }} "
+
+    [blocks.segments.properties]
+    fetch_status = true
+    branch_max_length = 32
+
+  [[blocks.segments]]
+  type = "aws"
+  style = "powerline"
+  powerline_symbol = ""
+  foreground = "p:crust"
+  background = "p:peach"
+  template = "  {{ .Profile }}{{ if .Region }}@{{ .RegionAlias }}{{ end }} "
+
+    [blocks.segments.properties]
+    display_default = false
+
+  [[blocks.segments]]
+  type = "docker"
+  style = "powerline"
+  powerline_symbol = ""
+  foreground = "p:crust"
+  background = "p:sapphire"
+  template = "  {{ .Context }} "
+
+  [[blocks.segments]]
+  type = "kubectl"
+  style = "powerline"
+  powerline_symbol = ""
+  foreground = "p:crust"
+  background = "p:teal"
+  template = " 󱃾 {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }} "
+
+  [[blocks.segments]]
+  type = "python"
+  style = "powerline"
+  powerline_symbol = ""
+  foreground = "p:crust"
+  background = "p:green"
+  template = "  {{ if .Venv }}{{ .Venv }}{{ else }}{{ .Full }}{{ end }} "
+
+    [blocks.segments.properties]
+    display_mode = "environment"
+    fetch_virtual_env = true
+
+[[blocks]]
+type = "rprompt"
+overflow = "hide"
+
+  [[blocks.segments]]
+  type = "time"
+  style = "diamond"
+  leading_diamond = ""
+  trailing_diamond = ""
+  foreground = "p:crust"
+  background = "p:lavender"
+  template = " {{ .CurrentDate | date .Format }} "
+
+    [blocks.segments.properties]
+    time_format = "Mon, 02-01-2006 | 15:04"
+
+[[blocks]]
+type = "prompt"
+alignment = "left"
+newline = true
+
+  [[blocks.segments]]
+  type = "status"
+  style = "plain"
+  foreground = "p:red"
+  template = "{{ if gt .Code 0 }}✘ {{ .Code }} {{ end }}"
+
+    [blocks.segments.properties]
+    always_enabled = true
+
+  [[blocks.segments]]
+  type = "text"
+  style = "plain"
+  foreground = "p:green"
+  template = "❯ "

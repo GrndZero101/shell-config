@@ -1,0 +1,126 @@
+#autoload
+
+# Print fortress interactive widget and keybinding state for debugging.
+
+emulate -L zsh
+
+# Print a labeled yes/no line.
+# Arguments:
+#   $1: label to print.
+#   $2: numeric zsh truth value.
+# Returns:
+#   0 after printing the status line.
+# Side effects:
+#   Writes a formatted debug line to stdout.
+fortress-debug-interactive-print-bool() {
+  local label="$1"
+  local value="$2"
+  local state='no'
+
+  if (( value )); then
+    state='yes'
+  fi
+
+  print -r -- "${label}: ${state}"
+}
+
+# Print keybinding and widget state for fortress interactive plugins.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing the current shell state.
+# Side effects:
+#   Reads keymap, widget, and function state from the active interactive shell.
+fortress-debug-interactive() {
+  local keymap
+
+  print -r -- '== Fortress Interactive Debug =='
+  print -r -- "profile: ${SHELL_PROFILE_NAME:-unknown}"
+  print -r -- "zsh_version: ${ZSH_VERSION}"
+  print -r -- "term: ${TERM:-unknown}"
+  print -r -- "keymap: ${KEYMAP:-unset}"
+  print -r -- "settings_file: ${SHELL_FORTRESS_SETTINGS_FILE:-unset}"
+  print -r -- "settings_template: ${SHELL_FORTRESS_SETTINGS_TEMPLATE:-unset}"
+  print -r -- "SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=${SHELL_FORTRESS_ENABLE_ZSH_VI_MODE:-unset}"
+  print -r -- "SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE=${SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE:-unset}"
+  print -r -- "SHELL_FORTRESS_ENABLE_FZF_TAB=${SHELL_FORTRESS_ENABLE_FZF_TAB:-unset}"
+  print -r -- "SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=${SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS:-unset}"
+  print -r -- "SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE=${SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE:-unset}"
+
+  print -r -- ''
+  print -r -- '== Functions =='
+  fortress-debug-interactive-print-bool 'zinit' "$(( $+functions[zinit] ))"
+  fortress-debug-interactive-print-bool 'enable-fzf-tab' "$(( $+functions[enable-fzf-tab] ))"
+  fortress-debug-interactive-print-bool '_ftb__main_complete' "$(( $+functions[_ftb__main_complete] ))"
+  fortress-debug-interactive-print-bool '.autocomplete__main' "$(( $+functions[.autocomplete__main] ))"
+  fortress-debug-interactive-print-bool '.autocomplete__key-bindings' "$(( $+functions[.autocomplete__key-bindings] ))"
+  fortress-debug-interactive-print-bool '.autocomplete__widgets' "$(( $+functions[.autocomplete__widgets] ))"
+  fortress-debug-interactive-print-bool '_zsh_autosuggest_start' "$(( $+functions[_zsh_autosuggest_start] ))"
+  fortress-debug-interactive-print-bool '_zsh_autosuggest_bind_widgets' "$(( $+functions[_zsh_autosuggest_bind_widgets] ))"
+  fortress-debug-interactive-print-bool 'zvm_after_lazy_keybindings' "$(( $+functions[zvm_after_lazy_keybindings] ))"
+  fortress-debug-interactive-print-bool 'zvm_widget_wrapper' "$(( $+functions[zvm_widget_wrapper] ))"
+
+  print -r -- ''
+  print -r -- '== Widgets =='
+  if zle -la >/dev/null 2>&1; then
+    fortress-debug-interactive-print-bool 'fzf-file-widget' "$(( ${${(f)"$(zle -la)"}[(I)fzf-file-widget]} > 0 ))"
+    fortress-debug-interactive-print-bool 'fzf-cd-widget' "$(( ${${(f)"$(zle -la)"}[(I)fzf-cd-widget]} > 0 ))"
+    fortress-debug-interactive-print-bool 'zle-history-fzf' "$(( ${${(f)"$(zle -la)"}[(I)zle-history-fzf]} > 0 ))"
+    fortress-debug-interactive-print-bool 'fzf-tab-complete' "$(( ${${(f)"$(zle -la)"}[(I)fzf-tab-complete]} > 0 ))"
+    fortress-debug-interactive-print-bool 'autosuggest-accept' "$(( ${${(f)"$(zle -la)"}[(I)autosuggest-accept]} > 0 ))"
+    fortress-debug-interactive-print-bool 'autosuggest-execute' "$(( ${${(f)"$(zle -la)"}[(I)autosuggest-execute]} > 0 ))"
+    fortress-debug-interactive-print-bool 'autosuggest-clear' "$(( ${${(f)"$(zle -la)"}[(I)autosuggest-clear]} > 0 ))"
+  else
+    print -r -- 'widgets: unavailable outside interactive zle'
+  fi
+
+  print -r -- ''
+  print -r -- '== Key Bindings =='
+  for keymap in emacs viins vicmd; do
+    print -r -- "-- ${keymap} --"
+    print -n -- 'tab: '
+    bindkey -M "${keymap}" '^I' 2>/dev/null || print -r -- 'no binding'
+    print -n -- 'ctrl-t: '
+    bindkey -M "${keymap}" '^T' 2>/dev/null || print -r -- 'no binding'
+    print -n -- 'alt-c: '
+    bindkey -M "${keymap}" '^[c' 2>/dev/null || print -r -- 'no binding'
+    print -n -- 'ctrl-x ctrl-r: '
+    bindkey -M "${keymap}" '^X^R' 2>/dev/null || print -r -- 'no binding'
+    print -n -- 'right-arrow: '
+    bindkey -M "${keymap}" '^[[C' 2>/dev/null || print -r -- 'no binding'
+    print -n -- 'alt-f: '
+    bindkey -M "${keymap}" '^[f' 2>/dev/null || print -r -- 'no binding'
+    print -n -- 'end: '
+    bindkey -M "${keymap}" '^[[F' 2>/dev/null || print -r -- 'no binding'
+  done
+
+  print -r -- ''
+  print -r -- '== Autosuggestion Config =='
+  print -r -- "ZSH_AUTOSUGGEST_STRATEGY=${(j: :)ZSH_AUTOSUGGEST_STRATEGY}"
+  print -r -- "ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE=${ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE:-unset}"
+
+  print -r -- ''
+  print -r -- '== Completion Styles =='
+  zstyle -L ':fzf-tab:*' 2>/dev/null || print -r -- 'no fzf-tab zstyles'
+  zstyle -L ':autocomplete:*' 2>/dev/null || print -r -- 'no autocomplete zstyles'
+
+  print -r -- ''
+  print -r -- '== Menu Select Bindings =='
+  print -n -- 'menuselect tab: '
+  bindkey -M menuselect '^I' 2>/dev/null || print -r -- 'no binding'
+  print -n -- 'menuselect shift-tab: '
+  bindkey -M menuselect "${terminfo[kcbt]:-^[[Z}" 2>/dev/null || print -r -- 'no binding'
+  print -n -- 'menuselect right-arrow: '
+  bindkey -M menuselect '^[[C' 2>/dev/null || print -r -- 'no binding'
+  print -n -- 'menuselect enter: '
+  bindkey -M menuselect '^M' 2>/dev/null || print -r -- 'no binding'
+
+  print -r -- ''
+  print -r -- '== Widget Definitions =='
+  zle -l -L complete-word 2>/dev/null || print -r -- 'complete-word: unavailable'
+  zle -l -L up-line-or-search 2>/dev/null || print -r -- 'up-line-or-search: unavailable'
+  zle -l -L down-line-or-search 2>/dev/null || print -r -- 'down-line-or-search: unavailable'
+  zle -l -L history-incremental-search-backward 2>/dev/null || print -r -- 'history-incremental-search-backward: unavailable'
+}
+
+fortress-debug-interactive "$@"

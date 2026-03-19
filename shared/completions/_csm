@@ -1,0 +1,79 @@
+# csm completion.
+# Provides command and option completion for the config shell manager.
+# Keep this shared carve-out limited to repo-owned command completion only.
+
+emulate -L zsh
+
+local completion_root
+local -a commands profile_dirs profiles sync_assets
+
+commands=(
+  'bootstrap:install ~/.zshenv and ~/.local/bin/csm symlinks'
+  'install-fzf-tab:install the official fzf-tab reference clone'
+  'install-zinit:install zinit for the fortress profile'
+  'select:open the interactive profile selector or switch directly to a profile'
+  'init-settings:create a profile settings file from its template'
+  'edit-settings:create or open a profile settings file in $VISUAL or $EDITOR'
+  'check:validate profile files and zsh syntax'
+  'debug-fzf-tab:print fzf-tab troubleshooting diagnostics'
+  'clean:remove generated cache and runtime files'
+  'clear-history:clear history for the current profile or all profiles'
+  'sync-catppuccin:refresh vendored Catppuccin assets'
+  'describe-profile:print profile contract metadata'
+)
+
+completion_root="${ZDOTDIR:h}"
+if [[ -z "${completion_root}" || ! -d "${completion_root}" ]]; then
+  completion_root="${${commands[csm]:A}:h:h}"
+fi
+profile_dirs=(${completion_root}/zsh-*(N-/))
+profiles=(${profile_dirs:t})
+
+sync_assets=(
+  all
+  atuin
+  eza
+)
+
+if (( CURRENT == 2 )); then
+  _describe -t commands 'csm command' commands
+  return 0
+fi
+
+case "${words[2]}" in
+  select)
+    if (( CURRENT == 3 )); then
+      _values 'select argument' --clean "${profiles[@]}"
+      return 0
+    fi
+
+    if (( CURRENT == 4 )) && [[ "${words[3]}" == '--clean' ]]; then
+      _values 'profile' "${profiles[@]}"
+      return 0
+    fi
+    ;;
+  clear-history)
+    if (( CURRENT == 3 )); then
+      _values 'clear-history option' --all
+      return 0
+    fi
+    ;;
+  sync-catppuccin)
+    if (( CURRENT == 3 )); then
+      _values 'Catppuccin asset' "${sync_assets[@]}"
+      return 0
+    fi
+    ;;
+  describe-profile)
+    if (( CURRENT == 3 )); then
+      _values 'profile' "${profiles[@]}"
+      return 0
+    fi
+    ;;
+  init-settings|edit-settings)
+    if (( CURRENT == 3 )); then
+      _values 'profile' "${profiles[@]}"
+      return 0
+    fi
+    ;;
+esac

@@ -1,0 +1,16 @@
+#autoload
+
+emulate -L zsh
+
+local root
+local -a repo_roots
+
+repo_roots=(
+  "${HOME}/projects"
+  "${HOME}/src"
+)
+
+for root in "${repo_roots[@]}"; do
+  [[ -d "${root}" ]] || continue
+  find "${root}" -type d -name .git -prune -print 2>/dev/null | sed 's#/.git$##'
+done | awk '!seen[$0]++'

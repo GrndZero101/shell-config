@@ -1,0 +1,13 @@
+#autoload
+
+emulate -L zsh
+
+local selected
+
+selected="$(
+  command git worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree / {sub(/^worktree /, "", $0); print $0}' \
+    | fzf --height=45% --layout=reverse --border --prompt='worktree> '
+)" || return 1
+
+builtin cd -- "${selected}"

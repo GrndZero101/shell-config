@@ -1,0 +1,5 @@
+#autoload
+
+emulate -L zsh
+
+fc -rl 1 | awk '!seen[$0]++' | fzf --height=45% --layout=reverse --border --prompt='history> '

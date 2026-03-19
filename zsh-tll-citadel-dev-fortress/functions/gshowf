@@ -1,0 +1,15 @@
+#autoload
+
+emulate -L zsh
+
+local selected_commit commit_hash
+
+selected_commit="$(
+  command git log --graph --color=always --decorate --oneline --abbrev-commit \
+    | fzf --ansi --no-sort --reverse --height=60% --border --prompt='commit> ' \
+      --preview='echo {} | grep -o "[a-f0-9]\{7,\}" | head -n1 | xargs -r git show --color=always --stat'
+)" || return 1
+
+commit_hash="$(print -r -- "${selected_commit}" | grep -o '[a-f0-9]\{7,\}' | head -n1)"
+[[ -n "${commit_hash}" ]] || return 1
+command git show --stat --color=always "${commit_hash}" | ${PAGER:-less -R}

@@ -1,0 +1,40 @@
+# Fortress git aliases.
+# Reapplies the preferred git alias set after plugin loading so fortress keeps
+# its higher-signal shortcuts even when OMZ git is present.
+
+alias g='git'
+alias ga='git add'
+alias gb='git branch'
+alias gc='git commit'
+alias gca='git commit --amend'
+alias gcam='git commit -am'
+alias gco='git checkout'
+alias gd='git diff'
+alias gds='git diff --staged'
+alias gf='git fetch'
+alias gl='git pull'
+alias gp='git push'
+alias gpf='git push --force-with-lease'
+alias gr='git rebase'
+alias gs='git status --short --branch'
+alias gsw='git switch'
+alias gwtl='git worktree list'
+
+compdef \
+  g=git \
+  ga=git \
+  gb=git \
+  gc=git \
+  gca=git \
+  gcam=git \
+  gco=git \
+  gd=git \
+  gds=git \
+  gf=git \
+  gl=git \
+  gp=git \
+  gpf=git \
+  gr=git \
+  gs=git \
+  gsw=git \
+  gwtl=git

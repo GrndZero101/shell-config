@@ -1,0 +1,20 @@
+#autoload
+
+emulate -L zsh
+
+local selected
+
+if (( $+commands[fd] )); then
+  selected="$(
+    fd --type d --hidden --follow --exclude .git . \
+      | fzf --height=45% --layout=reverse --border --prompt='dir> '
+  )" || return 1
+else
+  selected="$(
+    find . -type d -not -path '*/.git/*' -print 2>/dev/null \
+      | sed 's#^\./##' \
+      | fzf --height=45% --layout=reverse --border --prompt='dir> '
+  )" || return 1
+fi
+
+print -r -- "${selected}"

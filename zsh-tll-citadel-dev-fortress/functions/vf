@@ -1,0 +1,9 @@
+#autoload
+
+emulate -L zsh
+
+local editor_cmd selected
+
+selected="$(fzf-find-file)" || return 1
+editor_cmd="${VISUAL:-${EDITOR:-vi}}"
+"${=editor_cmd}" -- "${selected}"

@@ -1,0 +1,8 @@
+#autoload
+
+emulate -L zsh
+
+local selected
+
+selected="$(repo-find | fzf --height=50% --layout=reverse --border --prompt='repo> ')" || return 1
+builtin cd -- "${selected}"

@@ -1,0 +1,15 @@
+#autoload
+
+emulate -L zsh
+
+local selected_stash stash_ref
+
+selected_stash="$(
+  command git stash list --date=relative \
+    | fzf --height=60% --layout=reverse --border --prompt='stash> ' \
+      --preview='echo {} | cut -d: -f1 | xargs -r git stash show --color=always --stat --patch'
+)" || return 1
+
+stash_ref="${selected_stash%%:*}"
+[[ -n "${stash_ref}" ]] || return 1
+command git stash show --patch --stat --color=always "${stash_ref}" | ${PAGER:-less -R}

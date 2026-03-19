@@ -1,0 +1,8 @@
+#autoload
+
+emulate -L zsh
+
+local repo_root
+
+repo_root="$(git-root)" || return 1
+builtin cd -- "${repo_root}"

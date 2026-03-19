@@ -1,0 +1,7 @@
+#autoload
+
+emulate -L zsh
+
+SHELL_PROMPT_MODE='I'
+print -Pn '\e[5 q'
+zle reset-prompt

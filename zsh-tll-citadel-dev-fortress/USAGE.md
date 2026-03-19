@@ -1,0 +1,329 @@
+# zsh-tll-citadel-dev-fortress Usage
+
+`zsh-tll-citadel-dev-fortress` is the stronger native-first developer profile in this repository.
+It adds richer completion, repo-awareness, a configurable rich prompt layer, and a small `zinit`-managed plugin layer while keeping the shell understandable.
+
+> [!NOTE]
+> This is the most feature-rich profile currently implemented.
+> It can use `oh-my-posh`, `starship`, or native zsh prompting.
+> The default prompt-engine policy is `auto`: prefer `oh-my-posh`, then `starship`, then native zsh fallback.
+> It also supports a small fortress-only `zinit` plugin layer when `zinit` has been installed with `csm install-zinit`.
+> Fortress maintenance should keep `fortress-hud` and `fortress-debug-interactive` aligned with any new or changed toggles, helpers, tools, startup wiring, or runtime paths.
+
+## Identity
+
+- Profile directory: `zsh-tll-citadel-dev-fortress`
+- Intended user: someone living in repositories and terminal workflows all day
+- Design goal: stronger developer ergonomics without collapsing into an opaque shell stack
+
+## Editing Mode
+
+- Default line editor mode: `jeffreytse/zsh-vi-mode`
+- Native fallback mode: `bindkey -v` when `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=0`
+- How to enter command mode: press `Esc`
+- How to return to insert mode: press `i`, `a`, `A`, `o`, or start a new prompt
+
+> [!NOTE]
+> The verified and default modal-editing path in fortress is `zsh-vi-mode` with `fzf-tab` and Atuin enabled by default and `zsh-autosuggestions` remaining optional.
+> `zsh-vi-mode` plus `zsh-autocomplete` is available as an experimental compatibility path and is not treated as equally stable as the other verified combinations.
+> In that compat path, fortress biases `Tab` toward menu selection and uses autocomplete's history-search context by default.
+
+## Hotkeys
+
+| Key             | Behavior                                  | Notes                            |
+| --------------- | ----------------------------------------- | -------------------------------- |
+| `Ctrl-A`        | beginning of line                         | explicitly bound                 |
+| `Ctrl-E`        | end of line                               | explicitly bound                 |
+| `Ctrl-P`        | previous history entry by prefix          | works well after typing a prefix |
+| `Ctrl-N`        | next history entry by prefix              | works well after typing a prefix |
+| `Ctrl-R`        | incremental backward history search       | native zsh search                |
+| `Tab`           | completion insert or selection movement   | handled by native completion, `fzf-tab`, or `zsh-autocomplete` depending on env toggles |
+| `Ctrl-T`        | insert a selected file path with `fzf`    | only when `fzf` is installed     |
+| `Alt-C`         | fuzzy-select a directory and `cd` into it | only when `fzf` is installed     |
+| `Ctrl-X Ctrl-R` | fuzzy-select a history entry              | only when `fzf` is installed     |
+| `vv`            | edit the current command line in `$EDITOR` | only when `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` |
+| `gx`            | open the URL or file path under cursor    | only when `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` |
+| `Esc Esc`       | prepend `sudo` to the current command line | provided by the OMZ `sudo` plugin |
+| `web_search`    | open a search query in your browser        | provided by the OMZ `web-search` plugin |
+| Up arrow        | previous history entry by prefix          | `^[[A` and `^[OA` are bound      |
+| Down arrow      | next history entry by prefix              | `^[[B` and `^[OB` are bound      |
+| `Home`          | beginning of line                         | `^[[H` bound                     |
+| `End`           | end of line                               | `^[[F` bound                     |
+
+> [!TIP]
+> Aliases such as `ls`, `ll`, `tree`, `cat`, `grep`, `find`, and the git shorthand aliases keep command-aware completion wired to their underlying tools when those tools are installed.
+
+## History
+
+- History mode: profile
+- History file location: `${XDG_STATE_HOME:-$HOME/.local/state}/shell-config/zsh-tll-citadel-dev-fortress/history`
+- Prefix search behavior: Up/Down arrows and `Ctrl-P` / `Ctrl-N` use prefix-search widgets in insert mode
+- Incremental search behavior: `Ctrl-R` uses `history-incremental-search-backward`
+
+## Prompt
+
+- Prompt style: configurable prompt engine with `auto`, `oh-my-posh`, `starship`, and `native` modes; `auto` prefers `oh-my-posh`, then `starship`, then native zsh fallback
+- Prompt layout: fortress prefers a two-line layout with always-on path and prompt status, while git appears in repositories and AWS, Docker, Kubernetes, and Python segments appear only when active in richer prompt engines
+- Git or repo context: yes, via the selected prompt engine when available and via `vcs_info` plus upstream ahead/behind counts in native fallback mode
+
+## Helpers
+
+### Navigation
+
+| Function | Purpose |
+| --- | --- |
+| `cd` | handled by `zoxide` when it is installed |
+| `mkcd` | create a directory and `cd` into it |
+| `take` | same convenience behavior as `mkcd` |
+| `up` | move up one or more directories |
+| `croot` | `cd` to the current repository root |
+| `gcd` | jump to the current git repository root |
+| `repo-find` | list repos discovered under common project roots |
+| `rcd` | fuzzy-select a repo and `cd` into it |
+| `gwtcd` | fuzzy-select a worktree and `cd` into it |
+
+### Git
+
+> [!NOTE]
+> The helpers in this section are available only when `SHELL_FORTRESS_ENABLE_NATIVE_GIT=1`.
+> Without that env var, fortress uses the OMZ `git` plugin without the extra fortress-native git layer.
+
+| Function | Purpose |
+| --- | --- |
+| `git-root` | print the current repository root |
+| `git-current-branch` | print the current branch name |
+| `gst` | concise git status with branch information |
+| `glg` | graph-style one-line git log |
+| `gwt` | list git worktrees |
+| `gcof` | fuzzy-select a branch and check it out |
+| `gbdf` | fuzzy-select local branches to delete safely |
+| `gstashf` | fuzzy-select a stash and inspect it |
+| `gshowf` | fuzzy-select a commit and inspect it |
+
+### Fuzzy Workflows
+
+| Function | Purpose |
+| --- | --- |
+| `ff` | fuzzy-select and print a file path |
+| `fcd` | fuzzy-select a directory and `cd` into it |
+| `fh` | fuzzy-select a history entry |
+| `vf` | fuzzy-select a file and open it in `$VISUAL` / `$EDITOR` |
+
+### Shell Management
+
+| Function | Purpose |
+| --- | --- |
+| `zsh-profile-select` | open the interactive profile selector via `csm` |
+| `fortress-hud` | print a profile HUD with resolved settings, feature state, tools, runtime wiring, key paths, and optional env-variable mapping details |
+| `fortress-debug-interactive` | print live widget and keybinding state for troubleshooting `Tab`, `fzf-tab`, `zsh-vi-mode`, and autosuggestion behavior |
+| `web_search` | search the web through OMZ `web-search` engines |
+
+## Aliases
+
+### File and Search
+
+| Alias | Expands to | Notes |
+| --- | --- | --- |
+| `ls` | `eza --group-directories-first --icons=auto` | uses a profile-local Catppuccin Mocha `theme.yml` when `eza` is installed |
+| `ll` | `eza -lag --group-directories-first --icons=auto --header --git` or `ls -lah` | richer long view with header row and git status; falls back to `ls -lah` when `eza` is missing |
+| `tree` | `eza --tree --icons=auto` | uses the same Catppuccin Mocha `eza` theme |
+| `cat` | `bat --paging=never` | only when `bat` is installed |
+| `grep` | `rg` | only when `rg` is installed |
+| `find` | `fd` | only when `fd` is installed |
+| `jqp` | `jq .` | only when `jq` is installed |
+
+### Git
+
+> [!NOTE]
+> The aliases in this section are available only when `SHELL_FORTRESS_ENABLE_NATIVE_GIT=1`.
+> Without that env var, OMZ `git` provides its own alias surface.
+
+| Alias | Expands to | Notes |
+| --- | --- | --- |
+| `g` | `git` | short git entrypoint |
+| `ga` | `git add` | |
+| `gb` | `git branch` | |
+| `gc` | `git commit` | |
+| `gca` | `git commit --amend` | |
+| `gcam` | `git commit -am` | |
+| `gco` | `git checkout` | |
+| `gd` | `git diff` | |
+| `gds` | `git diff --staged` | |
+| `gf` | `git fetch` | |
+| `gl` | `git pull` | |
+| `gp` | `git push` | |
+| `gpf` | `git push --force-with-lease` | safer force-push default |
+| `gr` | `git rebase` | |
+| `gs` | `git status --short --branch` | concise repo view |
+| `gsw` | `git switch` | |
+| `gwtl` | `git worktree list` | |
+
+## External Tools
+
+| Tool     | How it is used                                                       |
+| -------- | -------------------------------------------------------------------- |
+| `eza`    | richer directory listing and tree output with a vendored Catppuccin Mocha theme in [`config/eza/theme.yml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/eza/theme.yml); fortress uses icons by default and enables header plus git status in `ll`; refreshable with `csm sync-catppuccin eza` |
+| `bat`    | better file viewing through `cat` alias                              |
+| `fzf`    | fuzzy file, directory, and history selection via widgets and helpers |
+| `rg`     | used as the `grep` alias when installed                              |
+| `fd`     | used as the `find` alias when installed                              |
+| `jq`     | pretty-print JSON through `jqp`                                      |
+| `oh-my-posh` | richer fortress prompt engine using a profile-local two-line theme in [`oh-my-posh.toml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/oh-my-posh.toml) based on `powerlevel10k_modern`, recolored for Catppuccin Mocha, with transient prompt support |
+| `starship` | alternate fortress prompt engine using the profile-local Catppuccin preset in [`starship.toml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/starship.toml) |
+| `zinit` | fortress-only plugin manager for the optional plugin layer, installed explicitly with `csm install-zinit` |
+| `zoxide` | replaces `cd` with smarter directory jumping while preserving `cd` muscle memory |
+| `direnv` | automatic per-directory environment loading through its zsh hook     |
+| `git`    | native git workflow helpers, aliases, and `fzf` selectors when `SHELL_FORTRESS_ENABLE_NATIVE_GIT=1` |
+| `OMZ git` | default fortress git plugin layer; always loaded through `zinit` and available even when the native fortress git layer is disabled |
+| `OMZ aws` | AWS-oriented aliases and completions when the `aws` CLI is installed |
+| `OMZ pass` | password-store completion when the `pass` command is installed |
+| `OMZ sudo` | lets you press `Esc Esc` to prepend `sudo` to the current command line |
+| `OMZ web-search` | adds the `web_search` helper and configurable search engines |
+| `fzf-tab` | fuzzy completion chooser for `Tab` when `fzf` is installed and `SHELL_FORTRESS_ENABLE_FZF_TAB=1` |
+| `zsh-autocomplete` | alternate completion frontend and type-ahead menu when `SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE=1` |
+| `zsh-autosuggestions` | inline command suggestions from history and prior usage when `zinit` is installed and `SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=1` |
+| `atuin` | optional history search integration when `SHELL_FORTRESS_ENABLE_ATUIN=1`; follows Atuin's documented `zsh-vi-mode` hook pattern when vi mode is active and uses a vendored official Catppuccin Mocha theme |
+| `zsh-syntax-highlighting` | command-line syntax highlighting loaded late in the plugin stack when `zinit` is installed |
+
+## Command Completion
+
+- `csm` has native zsh completion in this profile
+- completed areas include subcommands plus flags and values such as `select --clean`, direct profile completion for `csm select`, `clear-history --all`, `sync-catppuccin`, and `describe-profile`
+
+## Profile Switching
+
+- Interactive switch command: `zsh-profile-select`
+- Direct switch command: `csm select zsh-tll-citadel-dev-fortress` or another profile name
+- Clean switch command: `zsh-profile-select --clean` or `csm select --clean`
+- HUD command: `fortress-hud` for standard mode, `fortress-hud --pretty` for the Catppuccin/Nerd Font renderer, and `fortress-hud --env` to include exact env and persistent variable mappings
+- Interactive debug command: `fortress-debug-interactive`
+- Notes about environment isolation: normal mode is fast and preserves most inherited environment; clean mode resets into a curated minimal environment and is better when you want to avoid variable bleed from another profile
+
+## Persistent Settings
+
+Fortress can now load persistent startup preferences from:
+
+- `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config.local/zsh-tll-citadel-dev-fortress/settings.zsh`
+
+This is the preferred way to make login-time or container-startup defaults stick for this profile without re-invoking `zsh` with extra environment variables.
+
+Bootstrap a local settings file with:
+
+```zsh
+csm init-settings zsh-tll-citadel-dev-fortress
+```
+
+Open the same file in your configured editor with:
+
+```zsh
+csm edit-settings zsh-tll-citadel-dev-fortress
+```
+
+Settings file variables:
+
+- `SHELL_FORTRESS_SETTING_HISTSIZE`
+- `SHELL_FORTRESS_SETTING_SAVEHIST`
+- `SHELL_FORTRESS_SETTING_KEYTIMEOUT`
+- `SHELL_FORTRESS_SETTING_PROMPT_ENGINE`
+- `SHELL_FORTRESS_SETTING_ENABLE_NATIVE_GIT`
+- `SHELL_FORTRESS_SETTING_ENABLE_ZSH_VI_MODE`
+- `SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOCOMPLETE`
+- `SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOSUGGESTIONS`
+- `SHELL_FORTRESS_SETTING_ENABLE_FZF_TAB`
+- `SHELL_FORTRESS_SETTING_ENABLE_ATUIN`
+
+Startup precedence:
+
+- `SHELL_FORTRESS_ENABLE_*` environment overrides win for one-off sessions
+- fortress persistent settings are used next
+- built-in fortress defaults apply last
+
+> [!TIP]
+> `csm init-settings` and `csm edit-settings` also accept no profile argument when run from a shell that already started inside fortress.
+
+## Environment Overrides
+
+- `SHELL_FORTRESS_PROMPT_ENGINE=auto` prefers `oh-my-posh`, then `starship`, then native zsh fallback
+- `SHELL_FORTRESS_PROMPT_ENGINE=oh-my-posh` selects `oh-my-posh` when available and otherwise falls back to native zsh
+- `SHELL_FORTRESS_PROMPT_ENGINE=starship` selects `starship` when available and otherwise falls back to native zsh
+- `SHELL_FORTRESS_PROMPT_ENGINE=native` forces the native zsh prompt path
+- `SHELL_FORTRESS_ENABLE_NATIVE_GIT=1` enables the fortress-native git helper and alias layer on top of the OMZ `git` plugin
+- default behavior without that env var is OMZ `git` only
+- `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` keeps the default `jeffreytse/zsh-vi-mode` path active
+- `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=0` switches the profile back to native `bindkey -v` vi mode
+- `SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE=1` enables `marlonrichert/zsh-autocomplete` and lets it own `compinit` plus the primary completion flow; default behavior is off
+- `SHELL_FORTRESS_ENABLE_FZF_TAB=1` keeps the default `fzf-tab` path active when `zinit` and `fzf` are available
+- `SHELL_FORTRESS_ENABLE_FZF_TAB=0` disables `fzf-tab` and falls back to non-`fzf-tab` completion behavior
+- `SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=1` enables `zsh-autosuggestions` when `zinit` is available; default behavior is on
+- `SHELL_FORTRESS_ENABLE_ATUIN=1` keeps the default Atuin integration active when the `atuin` command is installed; when vi mode is active, fortress follows Atuin's documented `zvm_after_init_commands` integration pattern
+- `SHELL_FORTRESS_ENABLE_ATUIN=0` disables Atuin integration entirely
+- when Atuin is enabled, fortress exports `ATUIN_CONFIG_DIR` to [`config/atuin`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin) and `ATUIN_THEME_DIR` to [`config/atuin/themes`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/themes)
+- when Atuin is enabled, fortress exports `ATUIN_THEME_DIR` to [`config/atuin/themes`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/themes) and vendors the official `catppuccin-mocha-mauve` theme
+- fortress ships a profile-local Atuin config in [`config/atuin/config.toml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/config.toml) that selects the vendored `catppuccin-mocha-mauve` theme
+- in live-shell testing, Atuin respected the exported `ATUIN_CONFIG_DIR` and used the profile-local config even though `atuin info` still reported the default config path
+- Atuin may still create `~/.config/atuin/` as a directory, but the active config and theme can still come from the exported profile-local config directory
+- refresh the vendored Atuin Catppuccin theme with `csm sync-catppuccin atuin` or refresh all supported Catppuccin assets with `csm sync-catppuccin`
+- if `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` is set on its own, fortress skips `zsh-autocomplete` so `zsh-vi-mode` can own widget handling; `fzf-tab` may still be enabled alongside it
+- if both `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` and `SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE=1` are set, fortress enters an experimental compatibility mode that initializes `zsh-vi-mode` eagerly before loading `zsh-autocomplete`
+- if `zsh-autocomplete` actually loads, fortress skips `fzf-tab` and lets `zsh-autocomplete` win
+- in the experimental vi-mode plus autocomplete path, fortress rebinds `Tab` to `menu-select` after plugin load and sets autocomplete's default context to `history-incremental-search-backward`
+- `ZSH_WEB_SEARCH_ENGINES` can extend OMZ `web-search` engines, for example a ServiceNow shortcut
+
+Supported combinations:
+
+- native vi mode plus `zsh-autocomplete`
+- native vi mode plus `fzf-tab`
+- `zsh-vi-mode` plus `fzf-tab`
+- `zsh-vi-mode` plus `zsh-autosuggestions`
+- `zsh-vi-mode` plus `fzf-tab` plus `zsh-autosuggestions`
+
+Currently unsupported combination:
+
+- none currently hard-blocked, but `zsh-vi-mode` plus `zsh-autocomplete` should still be treated as experimental
+
+```zsh
+ZSH_WEB_SEARCH_ENGINES=(
+  snow "https://instance.service-now.com/nav_to.do?uri=task.do?sysparm_query=number="
+)
+```
+
+## Plugin Layer
+
+- Plugin manager: `zinit`
+- Install command: `csm install-zinit`
+- Current managed plugins:
+  - OMZ `colored-man-pages`
+  - OMZ `sudo`
+  - OMZ `web-search`
+  - OMZ `git`
+  - OMZ `aws` when the `aws` CLI is installed
+  - OMZ `pass` completion when the `pass` command is installed
+  - `jeffreytse/zsh-vi-mode`, enabled by default and replaceable with native `bindkey -v` when `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=0`
+  - `marlonrichert/zsh-autocomplete` when `SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE=1`, loaded before tool-level `compdef` usage so it can own `compinit`
+  - `Aloxaf/fzf-tab` when `fzf` is installed and `SHELL_FORTRESS_ENABLE_FZF_TAB=1`, loaded synchronously so `Tab` is intercepted on first use
+  - `zsh-users/zsh-autosuggestions`, enabled by default when `SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=1`
+  - `atuin` when `SHELL_FORTRESS_ENABLE_ATUIN=1`; if vi mode is active, fortress defers its init through `zvm_after_init_commands` as recommended by Atuin, and uses the vendored official Catppuccin Mocha theme file in [`config/atuin/themes/catppuccin-mocha-mauve.toml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/themes/catppuccin-mocha-mauve.toml)
+  - `zsh-users/zsh-syntax-highlighting`, loaded late so it remains the last highlighter in the interactive stack
+  - `zsh-vi-mode` normally takes precedence over `zsh-autocomplete`, but fortress can enter an experimental eager-init compatibility mode when both are enabled
+  - `fzf-tab` and `zsh-autocomplete` are treated as alternative completion frontends; fortress skips `fzf-tab` whenever `zsh-autocomplete` actually loads
+- Behavior when unavailable: fortress falls back to its native shell behavior if `zinit` has not been installed yet
+
+## Terminal Notes
+
+- this profile binds both `^[[A` / `^[[B` and `^[OA` / `^[OB` for better arrow-key behavior across Linux, macOS, Windows Terminal, WSL2, SSH, and some tmux setups
+- VS Code integrated terminal may still behave differently from standalone terminals if it emits different sequences
+- `j` / `k` in `vicmd` still use normal history movement; the stronger prefix-search behavior is primarily in insert mode
+- `zsh-vi-mode` adds extra vi-style helpers such as `vv` and `gx`, but fortress still keeps its explicit `Ctrl-A`, `Ctrl-E`, arrow, and `fzf` widget bindings
+- `Alt-C` depends on your terminal sending Meta/Alt escape sequences consistently; macOS terminals may need Option-key configuration
+- when `zoxide` is installed, `cd` becomes smarter rather than purely literal path traversal
+- `gcof`, `gshowf`, and `gwtcd` are most useful when `fzf` is installed
+- the prompt changes cursor shape in both prompt modes; the native fallback also shows `I` or `N` in the right prompt for insert and normal mode
+
+## Caveats
+
+- this profile can switch between `oh-my-posh`, `starship`, and native prompt paths and uses a small explicit `zinit` plugin layer when installed
+- terminal differences can still affect key behavior even when the bindings are correct
+- `fzf`, `zoxide`, `direnv`, `oh-my-posh`, `starship`, and `zinit` integrations activate only when those tools are installed or bootstrapped
+- `zsh-vi-mode`, `zsh-autocomplete`, `fzf-tab`, autosuggestions, and syntax highlighting depend on `zinit` being installed for fortress
+- `zsh-autocomplete` and `fzf-tab` should be treated as mutually exclusive in normal use; fortress gives priority to `zsh-autocomplete`
+- fortress-native git helpers and aliases are opt-in via `SHELL_FORTRESS_ENABLE_NATIVE_GIT=1`

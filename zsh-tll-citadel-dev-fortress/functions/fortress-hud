@@ -1,0 +1,597 @@
+#autoload
+
+# Print a fortress runtime HUD in standard or pretty mode.
+
+emulate -L zsh
+
+# Print one standard-mode section line.
+# Arguments:
+#   $1: section name.
+#   $2: key name.
+#   $3: value text.
+# Returns:
+#   0 after printing the line.
+# Side effects:
+#   Writes a stable sectioned key/value line to stdout.
+fortress-hud-print-standard-line() {
+  local section_name="$1"
+  local key_name="$2"
+  local value_text="$3"
+
+  print -r -- "[${section_name}] ${key_name}: ${value_text}"
+}
+
+# Print one pretty-mode section heading.
+# Arguments:
+#   $1: icon.
+#   $2: title.
+# Returns:
+#   0 after printing the heading.
+# Side effects:
+#   Writes a Catppuccin-tinted heading to stdout.
+fortress-hud-print-pretty-heading() {
+  local icon="$1"
+  local title="$2"
+
+  print -P -- "%F{111}%B${icon} ${title}%b%f"
+}
+
+# Print one pretty-mode key/value line.
+# Arguments:
+#   $1: key label.
+#   $2: value text.
+# Returns:
+#   0 after printing the line.
+# Side effects:
+#   Writes a colorized key/value line to stdout.
+fortress-hud-print-pretty-line() {
+  local key_name="$1"
+  local value_text="$2"
+
+  print -P -- "  %F{110}${key_name}:%f ${value_text}"
+}
+
+# Format a boolean state label for the selected renderer.
+# Arguments:
+#   $1: renderer mode, standard or pretty.
+#   $2: numeric truth value.
+# Returns:
+#   0 after printing the rendered state.
+# Side effects:
+#   Writes formatted text to stdout.
+fortress-hud-render-bool() {
+  local render_mode="$1"
+  local bool_value="$2"
+
+  if [[ "${render_mode}" == 'pretty' ]]; then
+    if (( bool_value )); then
+      print -P -- "%F{114}on%f"
+    else
+      print -P -- "%F{203}off%f"
+    fi
+    return 0
+  fi
+
+  if (( bool_value )); then
+    print -r -- 'on'
+  else
+    print -r -- 'off'
+  fi
+}
+
+# Render a command availability state for the selected renderer.
+# Arguments:
+#   $1: renderer mode, standard or pretty.
+#   $2: command name.
+# Returns:
+#   0 after printing the rendered availability text.
+# Side effects:
+#   Writes formatted text to stdout.
+fortress-hud-render-command() {
+  local render_mode="$1"
+  local command_name="$2"
+
+  if (( $+commands[${command_name}] )); then
+    if [[ "${render_mode}" == 'pretty' ]]; then
+      print -P -- "%F{114}available%f (${commands[${command_name}]})"
+    else
+      print -r -- "available (${commands[${command_name}]})"
+    fi
+    return 0
+  fi
+
+  if [[ "${render_mode}" == 'pretty' ]]; then
+    print -P -- '%F{203}missing%f'
+  else
+    print -r -- 'missing'
+  fi
+}
+
+# Print a renderer-aware section heading.
+# Arguments:
+#   $1: renderer mode, standard or pretty.
+#   $2: section id.
+#   $3: icon.
+#   $4: title.
+# Returns:
+#   0 after printing the heading.
+# Side effects:
+#   Writes a section heading to stdout.
+fortress-hud-section() {
+  local render_mode="$1"
+  local section_name="$2"
+  local section_icon="$3"
+  local section_title="$4"
+
+  if [[ "${render_mode}" == 'pretty' ]]; then
+    fortress-hud-print-pretty-heading "${section_icon}" "${section_title}"
+  else
+    print -r -- "[${section_name}]"
+  fi
+}
+
+# Print a renderer-aware key/value line.
+# Arguments:
+#   $1: renderer mode, standard or pretty.
+#   $2: section id.
+#   $3: key name.
+#   $4: value text.
+# Returns:
+#   0 after printing the line.
+# Side effects:
+#   Writes one HUD line to stdout.
+fortress-hud-line() {
+  local render_mode="$1"
+  local section_name="$2"
+  local key_name="$3"
+  local value_text="$4"
+
+  if [[ "${render_mode}" == 'pretty' ]]; then
+    fortress-hud-print-pretty-line "${key_name}" "${value_text}"
+  else
+    fortress-hud-print-standard-line "${section_name}" "${key_name}" "${value_text}"
+  fi
+}
+
+# Print a blank line between sections.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing a blank line.
+# Side effects:
+#   Writes a blank line to stdout.
+fortress-hud-blank() {
+  print -r -- ''
+}
+
+# Color one env-table cell for pretty mode.
+# Arguments:
+#   $1: column kind.
+#   $2: raw cell value.
+# Returns:
+#   0 after printing the colored cell text.
+# Side effects:
+#   Writes a colorized table cell to stdout.
+fortress-hud-color-env-cell() {
+  local column_kind="$1"
+  local raw_value="$2"
+
+  case "${column_kind}" in
+    resolved)
+      case "${raw_value}" in
+        on|1)
+          print -P -- "%F{114}${raw_value}%f"
+          ;;
+        off|0)
+          print -P -- "%F{203}${raw_value}%f"
+          ;;
+        *)
+          print -r -- "${raw_value}"
+          ;;
+      esac
+      ;;
+    source)
+      case "${raw_value}" in
+        env)
+          print -P -- "%F{117}${raw_value}%f"
+          ;;
+        persistent)
+          print -P -- "%F{141}${raw_value}%f"
+          ;;
+        default)
+          print -P -- "%F{244}${raw_value}%f"
+          ;;
+        *)
+          print -r -- "${raw_value}"
+          ;;
+      esac
+      ;;
+    env_value|settings_value)
+      case "${raw_value}" in
+        unset)
+          print -P -- "%F{244}${raw_value}%f"
+          ;;
+        1|true|yes|on)
+          print -P -- "%F{114}${raw_value}%f"
+          ;;
+        0|false|no|off)
+          print -P -- "%F{203}${raw_value}%f"
+          ;;
+        *)
+          print -P -- "%F{221}${raw_value}%f"
+          ;;
+      esac
+      ;;
+    *)
+      print -r -- "${raw_value}"
+      ;;
+  esac
+}
+
+# Print one standard-mode env-mapping row for a fortress setting.
+# Arguments:
+#   $1: logical setting name.
+#   $2: env override variable name.
+#   $3: persistent settings variable name.
+#   $4: resolved value text.
+#   $5: source label.
+# Returns:
+#   0 after printing the mapping.
+# Side effects:
+#   Reads raw shell parameters by name and writes one HUD line to stdout.
+fortress-hud-env-line() {
+  local setting_name="$1"
+  local env_name="$2"
+  local settings_name="$3"
+  local env_raw_name="$4"
+  local settings_raw_name="$5"
+  local resolved_value="$6"
+  local source_label="$7"
+  local env_value="${(P)env_raw_name:-unset}"
+  local settings_value="${(P)settings_raw_name:-unset}"
+
+  fortress-hud-line \
+    standard \
+    env \
+    "${setting_name}" \
+    "env=${env_name}:${env_value} persistent=${settings_name}:${settings_value} resolved=${resolved_value} source=${source_label}"
+}
+
+# Print the pretty-mode env table.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing the env mapping table.
+# Side effects:
+#   Reads raw shell parameters by name and writes a formatted table to stdout.
+fortress-hud-print-pretty-env-table() {
+  local -a rows
+  local row
+  local setting_name env_name settings_name env_raw_name settings_raw_name resolved_value source_label env_value settings_value
+  local setting_header='setting'
+  local resolved_header='resolved'
+  local source_header='source'
+  local env_name_header='env var'
+  local env_value_header='env value'
+  local settings_name_header='settings var'
+  local settings_value_header='settings value'
+  local -i setting_width=${#setting_header}
+  local -i resolved_width=${#resolved_header}
+  local -i source_width=${#source_header}
+  local -i env_name_width=${#env_name_header}
+  local -i env_value_width=${#env_value_header}
+  local -i settings_name_width=${#settings_name_header}
+  local -i settings_value_width=${#settings_value_header}
+
+  rows=(
+    "native_git|SHELL_FORTRESS_ENABLE_NATIVE_GIT|SHELL_FORTRESS_SETTING_ENABLE_NATIVE_GIT|SHELL_FORTRESS_RAW_ENV_ENABLE_NATIVE_GIT|SHELL_FORTRESS_RAW_SETTING_ENABLE_NATIVE_GIT|${SHELL_FORTRESS_ENABLE_NATIVE_GIT:-unset}|${SHELL_FORTRESS_SOURCE_ENABLE_NATIVE_GIT:-default}"
+    "zsh_vi_mode|SHELL_FORTRESS_ENABLE_ZSH_VI_MODE|SHELL_FORTRESS_SETTING_ENABLE_ZSH_VI_MODE|SHELL_FORTRESS_RAW_ENV_ENABLE_ZSH_VI_MODE|SHELL_FORTRESS_RAW_SETTING_ENABLE_ZSH_VI_MODE|${SHELL_FORTRESS_ENABLE_ZSH_VI_MODE:-unset}|${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_VI_MODE:-default}"
+    "zsh_autocomplete|SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE|SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOCOMPLETE|SHELL_FORTRESS_RAW_ENV_ENABLE_ZSH_AUTOCOMPLETE|SHELL_FORTRESS_RAW_SETTING_ENABLE_ZSH_AUTOCOMPLETE|${SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE:-unset}|${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOCOMPLETE:-default}"
+    "zsh_autosuggestions|SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS|SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOSUGGESTIONS|SHELL_FORTRESS_RAW_ENV_ENABLE_ZSH_AUTOSUGGESTIONS|SHELL_FORTRESS_RAW_SETTING_ENABLE_ZSH_AUTOSUGGESTIONS|${SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS:-unset}|${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOSUGGESTIONS:-default}"
+    "fzf_tab|SHELL_FORTRESS_ENABLE_FZF_TAB|SHELL_FORTRESS_SETTING_ENABLE_FZF_TAB|SHELL_FORTRESS_RAW_ENV_ENABLE_FZF_TAB|SHELL_FORTRESS_RAW_SETTING_ENABLE_FZF_TAB|${SHELL_FORTRESS_ENABLE_FZF_TAB:-unset}|${SHELL_FORTRESS_SOURCE_ENABLE_FZF_TAB:-default}"
+    "atuin|SHELL_FORTRESS_ENABLE_ATUIN|SHELL_FORTRESS_SETTING_ENABLE_ATUIN|SHELL_FORTRESS_RAW_ENV_ENABLE_ATUIN|SHELL_FORTRESS_RAW_SETTING_ENABLE_ATUIN|${SHELL_FORTRESS_ENABLE_ATUIN:-unset}|${SHELL_FORTRESS_SOURCE_ENABLE_ATUIN:-default}"
+    "histsize|HISTSIZE|SHELL_FORTRESS_SETTING_HISTSIZE|SHELL_FORTRESS_RAW_ENV_HISTSIZE|SHELL_FORTRESS_RAW_SETTING_HISTSIZE|${HISTSIZE:-unset}|${SHELL_FORTRESS_SOURCE_HISTSIZE:-default}"
+    "savehist|SAVEHIST|SHELL_FORTRESS_SETTING_SAVEHIST|SHELL_FORTRESS_RAW_ENV_SAVEHIST|SHELL_FORTRESS_RAW_SETTING_SAVEHIST|${SAVEHIST:-unset}|${SHELL_FORTRESS_SOURCE_SAVEHIST:-default}"
+    "keytimeout|KEYTIMEOUT|SHELL_FORTRESS_SETTING_KEYTIMEOUT|SHELL_FORTRESS_RAW_ENV_KEYTIMEOUT|SHELL_FORTRESS_RAW_SETTING_KEYTIMEOUT|${KEYTIMEOUT:-unset}|${SHELL_FORTRESS_SOURCE_KEYTIMEOUT:-default}"
+    "prompt_engine|SHELL_FORTRESS_PROMPT_ENGINE|SHELL_FORTRESS_SETTING_PROMPT_ENGINE|SHELL_FORTRESS_RAW_ENV_PROMPT_ENGINE|SHELL_FORTRESS_RAW_SETTING_PROMPT_ENGINE|${SHELL_FORTRESS_ACTIVE_PROMPT_ENGINE:-unset}|${SHELL_FORTRESS_SOURCE_PROMPT_ENGINE:-default}"
+  )
+
+  for row in "${rows[@]}"; do
+    setting_name="${row%%|*}"
+    row="${row#*|}"
+    env_name="${row%%|*}"
+    row="${row#*|}"
+    settings_name="${row%%|*}"
+    row="${row#*|}"
+    env_raw_name="${row%%|*}"
+    row="${row#*|}"
+    settings_raw_name="${row%%|*}"
+    row="${row#*|}"
+    resolved_value="${row%%|*}"
+    source_label="${row#*|}"
+    env_value="${(P)env_raw_name:-unset}"
+    settings_value="${(P)settings_raw_name:-unset}"
+
+    (( ${#setting_name} > setting_width )) && setting_width=${#setting_name}
+    (( ${#resolved_value} > resolved_width )) && resolved_width=${#resolved_value}
+    (( ${#source_label} > source_width )) && source_width=${#source_label}
+    (( ${#env_name} > env_name_width )) && env_name_width=${#env_name}
+    (( ${#env_value} > env_value_width )) && env_value_width=${#env_value}
+    (( ${#settings_name} > settings_name_width )) && settings_name_width=${#settings_name}
+    (( ${#settings_value} > settings_value_width )) && settings_value_width=${#settings_value}
+  done
+
+  print -P -- "  %F{110}${(r:${setting_width}:: :)setting_header}%f  %F{110}${(r:${resolved_width}:: :)resolved_header}%f  %F{110}${(r:${source_width}:: :)source_header}%f  %F{110}${(r:${env_name_width}:: :)env_name_header}%f  %F{110}${(r:${env_value_width}:: :)env_value_header}%f  %F{110}${(r:${settings_name_width}:: :)settings_name_header}%f  %F{110}${(r:${settings_value_width}:: :)settings_value_header}%f"
+
+  for row in "${rows[@]}"; do
+    setting_name="${row%%|*}"
+    row="${row#*|}"
+    env_name="${row%%|*}"
+    row="${row#*|}"
+    settings_name="${row%%|*}"
+    row="${row#*|}"
+    env_raw_name="${row%%|*}"
+    row="${row#*|}"
+    settings_raw_name="${row%%|*}"
+    row="${row#*|}"
+    resolved_value="${row%%|*}"
+    source_label="${row#*|}"
+    env_value="${(P)env_raw_name:-unset}"
+    settings_value="${(P)settings_raw_name:-unset}"
+
+    printf '  %-*s  ' "${setting_width}" "${setting_name}"
+    printf '%s' "$(fortress-hud-color-env-cell resolved "${resolved_value}")"
+    printf '%*s  ' "$(( resolved_width - ${#resolved_value} ))" ''
+    printf '%s' "$(fortress-hud-color-env-cell source "${source_label}")"
+    printf '%*s  ' "$(( source_width - ${#source_label} ))" ''
+    printf '%-*s  ' "${env_name_width}" "${env_name}"
+    printf '%s' "$(fortress-hud-color-env-cell env_value "${env_value}")"
+    printf '%*s  ' "$(( env_value_width - ${#env_value} ))" ''
+    printf '%-*s  ' "${settings_name_width}" "${settings_name}"
+    printf '%s' "$(fortress-hud-color-env-cell settings_value "${settings_value}")"
+    printf '%*s\n' "$(( settings_value_width - ${#settings_value} ))" ''
+  done
+}
+
+# Detect whether the current shell appears to be inside a container.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing yes or no.
+# Side effects:
+#   Reads common container marker files and environment variables.
+fortress-hud-container-state() {
+  if [[ -f /.dockerenv || -f /run/.containerenv || -n "${container:-}" ]]; then
+    print -r -- 'yes'
+  else
+    print -r -- 'no'
+  fi
+}
+
+# Print the fortress HUD.
+# Arguments:
+#   $@ - Optional flags: --standard, --pretty, and --env.
+# Returns:
+#   0 after printing the HUD, non-zero on invalid arguments.
+# Side effects:
+#   Reads shell state, zle state, zstyles, and command availability.
+fortress-hud() {
+  local render_mode='standard'
+  local show_env_section=0
+  local runtime_context='local'
+  local keymap_value='unavailable'
+  local active_tab_widget='unavailable'
+  local compinit_loaded=0
+  local zinit_loaded=0
+  local fzf_tab_loaded=0
+  local autocomplete_loaded=0
+  local autosuggestions_loaded=0
+  local zvm_loaded=0
+  local atuin_initialized=0
+  local current_line
+  local source_label
+  local value_label
+  local settings_file_exists=0
+  local zinit_repo_ready=0
+  local arg
+
+  for arg in "$@"; do
+    case "${arg}" in
+      --standard)
+        render_mode='standard'
+        ;;
+      --pretty)
+        render_mode='pretty'
+        ;;
+      --env)
+        show_env_section=1
+        ;;
+      *)
+        print -u2 -- "fortress-hud: unknown argument: ${arg}"
+        print -u2 -- 'usage: fortress-hud [--standard|--pretty] [--env]'
+        return 1
+        ;;
+    esac
+  done
+
+  if [[ -n "${SSH_CONNECTION:-}${SSH_CLIENT:-}" ]]; then
+    runtime_context='ssh'
+  fi
+
+  if [[ -n "${TMUX:-}" ]]; then
+    runtime_context="${runtime_context}+tmux"
+  fi
+
+  if [[ -o login ]]; then
+    runtime_context="${runtime_context}+login"
+  fi
+
+  if [[ -o interactive ]]; then
+    runtime_context="${runtime_context}+interactive"
+  fi
+
+  if [[ -n "${KEYMAP:-}" ]]; then
+    keymap_value="${KEYMAP}"
+  fi
+
+  if (( $+functions[compinit] )); then
+    compinit_loaded=1
+  fi
+  if (( $+functions[zinit] )); then
+    zinit_loaded=1
+  fi
+  if (( $+functions[_ftb__main_complete] || $+functions[enable-fzf-tab] )); then
+    fzf_tab_loaded=1
+  fi
+  if (( $+functions[.autocomplete__main] || SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE )); then
+    autocomplete_loaded=1
+  fi
+  if (( $+functions[_zsh_autosuggest_start] )); then
+    autosuggestions_loaded=1
+  fi
+  if (( $+functions[zvm_widget_wrapper] )); then
+    zvm_loaded=1
+  fi
+  if (( SHELL_FORTRESS_ENABLE_ATUIN )) && (( $+commands[atuin] )); then
+    if (( $+functions[zvm_widget_wrapper] )); then
+      if (( ${+zvm_after_init_commands} )); then
+        atuin_initialized=1
+      fi
+    elif [[ -n "${ATUIN_CONFIG_DIR:-}" ]]; then
+      atuin_initialized=1
+    fi
+  fi
+
+  if [[ -r "${SHELL_FORTRESS_SETTINGS_FILE:-}" ]]; then
+    settings_file_exists=1
+  fi
+  if [[ -r "${SHELL_PROFILE_ZINIT_HOME:-}/zinit.zsh" ]]; then
+    zinit_repo_ready=1
+  fi
+
+  if zle -la >/dev/null 2>&1; then
+    if (( ${${(f)"$(zle -la)"}[(I)fzf-tab-complete]} > 0 )); then
+      active_tab_widget='fzf-tab-complete'
+    else
+      current_line="$(bindkey '^I' 2>/dev/null)"
+      if [[ -n "${current_line}" ]]; then
+        active_tab_widget="${current_line##* }"
+      fi
+    fi
+  else
+    current_line="$(bindkey '^I' 2>/dev/null || true)"
+    if [[ -n "${current_line}" ]]; then
+      active_tab_widget="${current_line##* }"
+    fi
+  fi
+
+  fortress-hud-section "${render_mode}" profile '󰒓' 'Profile'
+  fortress-hud-line "${render_mode}" profile 'name' "${SHELL_PROFILE_NAME:-unknown}"
+  fortress-hud-line "${render_mode}" profile 'description' "${SHELL_PROFILE_DESCRIPTION:-unset}"
+  fortress-hud-line "${render_mode}" profile 'zdotdir' "${ZDOTDIR:-unset}"
+  fortress-hud-line "${render_mode}" profile 'runtime_context' "${runtime_context}"
+  fortress-hud-line "${render_mode}" profile 'container' "$(fortress-hud-container-state)"
+  fortress-hud-line "${render_mode}" profile 'keymap' "${keymap_value}"
+  fortress-hud-blank
+
+  fortress-hud-section "${render_mode}" settings '󰘳' 'Settings'
+  fortress-hud-line "${render_mode}" settings 'settings_file' "${SHELL_FORTRESS_SETTINGS_FILE:-unset}"
+  fortress-hud-line "${render_mode}" settings 'settings_file_exists' "$(fortress-hud-render-bool "${render_mode}" "${settings_file_exists}")"
+  fortress-hud-line "${render_mode}" settings 'settings_template' "${SHELL_FORTRESS_SETTINGS_TEMPLATE:-unset}"
+  fortress-hud-line "${render_mode}" settings 'prompt_engine_configured' "${SHELL_FORTRESS_CONFIGURED_PROMPT_ENGINE:-unset} (source=${SHELL_FORTRESS_SOURCE_PROMPT_ENGINE:-default})"
+  fortress-hud-line "${render_mode}" settings 'prompt_engine_resolved' "${SHELL_FORTRESS_ACTIVE_PROMPT_ENGINE:-unset}"
+
+  source_label="${SHELL_FORTRESS_SOURCE_ENABLE_NATIVE_GIT:-default}"
+  value_label="$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_NATIVE_GIT:-0}")"
+  fortress-hud-line "${render_mode}" settings 'native_git' "${value_label} (source=${source_label})"
+
+  source_label="${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_VI_MODE:-default}"
+  value_label="$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_ZSH_VI_MODE:-0}")"
+  fortress-hud-line "${render_mode}" settings 'zsh_vi_mode' "${value_label} (source=${source_label})"
+
+  source_label="${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOCOMPLETE:-default}"
+  value_label="$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE:-0}")"
+  fortress-hud-line "${render_mode}" settings 'zsh_autocomplete' "${value_label} (source=${source_label})"
+
+  source_label="${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOSUGGESTIONS:-default}"
+  value_label="$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS:-0}")"
+  fortress-hud-line "${render_mode}" settings 'zsh_autosuggestions' "${value_label} (source=${source_label})"
+
+  source_label="${SHELL_FORTRESS_SOURCE_ENABLE_FZF_TAB:-default}"
+  value_label="$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_FZF_TAB:-0}")"
+  fortress-hud-line "${render_mode}" settings 'fzf_tab' "${value_label} (source=${source_label})"
+
+  source_label="${SHELL_FORTRESS_SOURCE_ENABLE_ATUIN:-default}"
+  value_label="$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_ATUIN:-0}")"
+  fortress-hud-line "${render_mode}" settings 'atuin' "${value_label} (source=${source_label})"
+
+  source_label="${SHELL_FORTRESS_SOURCE_HISTSIZE:-default}"
+  fortress-hud-line "${render_mode}" settings 'histsize' "${HISTSIZE:-unset} (source=${source_label})"
+  source_label="${SHELL_FORTRESS_SOURCE_SAVEHIST:-default}"
+  fortress-hud-line "${render_mode}" settings 'savehist' "${SAVEHIST:-unset} (source=${source_label})"
+  source_label="${SHELL_FORTRESS_SOURCE_KEYTIMEOUT:-default}"
+  fortress-hud-line "${render_mode}" settings 'keytimeout' "${KEYTIMEOUT:-unset} (source=${source_label})"
+  fortress-hud-blank
+
+  fortress-hud-section "${render_mode}" features '󰆍' 'Features'
+  fortress-hud-line "${render_mode}" features 'vi_autocomplete_compat' "$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_ZSH_VI_AUTOCOMPLETE_COMPAT:-0}")"
+  fortress-hud-line "${render_mode}" features 'autocomplete_loaded' "$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE:-0}")"
+  fortress-hud-line "${render_mode}" features 'prompt_mode' "${SHELL_PROMPT_MODE:-unset}"
+  fortress-hud-line "${render_mode}" features 'atuin_config_dir' "${ATUIN_CONFIG_DIR:-unset}"
+  fortress-hud-line "${render_mode}" features 'atuin_theme_dir' "${ATUIN_THEME_DIR:-unset}"
+  fortress-hud-blank
+
+  fortress-hud-section "${render_mode}" tools '󰈔' 'Tools'
+  fortress-hud-line "${render_mode}" tools 'git' "$(fortress-hud-render-command "${render_mode}" git)"
+  fortress-hud-line "${render_mode}" tools 'zinit_repo' "$(fortress-hud-render-bool "${render_mode}" "${zinit_repo_ready}")"
+  fortress-hud-line "${render_mode}" tools 'fzf' "$(fortress-hud-render-command "${render_mode}" fzf)"
+  fortress-hud-line "${render_mode}" tools 'atuin' "$(fortress-hud-render-command "${render_mode}" atuin)"
+  fortress-hud-line "${render_mode}" tools 'oh-my-posh' "$(fortress-hud-render-command "${render_mode}" oh-my-posh)"
+  fortress-hud-line "${render_mode}" tools 'starship' "$(fortress-hud-render-command "${render_mode}" starship)"
+  fortress-hud-line "${render_mode}" tools 'eza' "$(fortress-hud-render-command "${render_mode}" eza)"
+  fortress-hud-line "${render_mode}" tools 'zoxide' "$(fortress-hud-render-command "${render_mode}" zoxide)"
+  fortress-hud-line "${render_mode}" tools 'direnv' "$(fortress-hud-render-command "${render_mode}" direnv)"
+  fortress-hud-blank
+
+  fortress-hud-section "${render_mode}" runtime '󰌌' 'Runtime'
+  fortress-hud-line "${render_mode}" runtime 'zinit_loaded' "$(fortress-hud-render-bool "${render_mode}" "${zinit_loaded}")"
+  fortress-hud-line "${render_mode}" runtime 'compinit_loaded' "$(fortress-hud-render-bool "${render_mode}" "${compinit_loaded}")"
+  fortress-hud-line "${render_mode}" runtime 'fzf_tab_loaded' "$(fortress-hud-render-bool "${render_mode}" "${fzf_tab_loaded}")"
+  fortress-hud-line "${render_mode}" runtime 'autocomplete_functions' "$(fortress-hud-render-bool "${render_mode}" "${autocomplete_loaded}")"
+  fortress-hud-line "${render_mode}" runtime 'autosuggestions_loaded' "$(fortress-hud-render-bool "${render_mode}" "${autosuggestions_loaded}")"
+  fortress-hud-line "${render_mode}" runtime 'zsh_vi_mode_loaded' "$(fortress-hud-render-bool "${render_mode}" "${zvm_loaded}")"
+  fortress-hud-line "${render_mode}" runtime 'atuin_initialized' "$(fortress-hud-render-bool "${render_mode}" "${atuin_initialized}")"
+  fortress-hud-line "${render_mode}" runtime 'active_tab_widget' "${active_tab_widget}"
+  fortress-hud-blank
+
+  fortress-hud-section "${render_mode}" paths '󰉋' 'Paths'
+  fortress-hud-line "${render_mode}" paths 'history_file' "${HISTFILE:-unset}"
+  fortress-hud-line "${render_mode}" paths 'state_dir' "${SHELL_PROFILE_STATE_DIR:-unset}"
+  fortress-hud-line "${render_mode}" paths 'cache_dir' "${SHELL_PROFILE_CACHE_DIR:-unset}"
+  fortress-hud-line "${render_mode}" paths 'data_dir' "${SHELL_PROFILE_DATA_DIR:-unset}"
+  fortress-hud-line "${render_mode}" paths 'runtime_dir' "${SHELL_PROFILE_RUNTIME_DIR:-unset}"
+  fortress-hud-line "${render_mode}" paths 'zinit_root' "${SHELL_PROFILE_ZINIT_ROOT:-unset}"
+  fortress-hud-line "${render_mode}" paths 'zinit_home' "${SHELL_PROFILE_ZINIT_HOME:-unset}"
+
+  if (( show_env_section )); then
+    fortress-hud-blank
+    fortress-hud-section "${render_mode}" env '󰮂' 'Env Mapping'
+    fortress-hud-line "${render_mode}" env 'settings_file' "${SHELL_FORTRESS_SETTINGS_FILE:-unset}"
+    if [[ "${render_mode}" == 'pretty' ]]; then
+      fortress-hud-print-pretty-env-table
+    else
+      fortress-hud-env-line 'native_git' 'SHELL_FORTRESS_ENABLE_NATIVE_GIT' 'SHELL_FORTRESS_SETTING_ENABLE_NATIVE_GIT' 'SHELL_FORTRESS_RAW_ENV_ENABLE_NATIVE_GIT' 'SHELL_FORTRESS_RAW_SETTING_ENABLE_NATIVE_GIT' "${SHELL_FORTRESS_ENABLE_NATIVE_GIT:-unset}" "${SHELL_FORTRESS_SOURCE_ENABLE_NATIVE_GIT:-default}"
+      fortress-hud-env-line 'zsh_vi_mode' 'SHELL_FORTRESS_ENABLE_ZSH_VI_MODE' 'SHELL_FORTRESS_SETTING_ENABLE_ZSH_VI_MODE' 'SHELL_FORTRESS_RAW_ENV_ENABLE_ZSH_VI_MODE' 'SHELL_FORTRESS_RAW_SETTING_ENABLE_ZSH_VI_MODE' "${SHELL_FORTRESS_ENABLE_ZSH_VI_MODE:-unset}" "${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_VI_MODE:-default}"
+      fortress-hud-env-line 'zsh_autocomplete' 'SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE' 'SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOCOMPLETE' 'SHELL_FORTRESS_RAW_ENV_ENABLE_ZSH_AUTOCOMPLETE' 'SHELL_FORTRESS_RAW_SETTING_ENABLE_ZSH_AUTOCOMPLETE' "${SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE:-unset}" "${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOCOMPLETE:-default}"
+      fortress-hud-env-line 'zsh_autosuggestions' 'SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS' 'SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOSUGGESTIONS' 'SHELL_FORTRESS_RAW_ENV_ENABLE_ZSH_AUTOSUGGESTIONS' 'SHELL_FORTRESS_RAW_SETTING_ENABLE_ZSH_AUTOSUGGESTIONS' "${SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS:-unset}" "${SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOSUGGESTIONS:-default}"
+      fortress-hud-env-line 'fzf_tab' 'SHELL_FORTRESS_ENABLE_FZF_TAB' 'SHELL_FORTRESS_SETTING_ENABLE_FZF_TAB' 'SHELL_FORTRESS_RAW_ENV_ENABLE_FZF_TAB' 'SHELL_FORTRESS_RAW_SETTING_ENABLE_FZF_TAB' "${SHELL_FORTRESS_ENABLE_FZF_TAB:-unset}" "${SHELL_FORTRESS_SOURCE_ENABLE_FZF_TAB:-default}"
+      fortress-hud-env-line 'atuin' 'SHELL_FORTRESS_ENABLE_ATUIN' 'SHELL_FORTRESS_SETTING_ENABLE_ATUIN' 'SHELL_FORTRESS_RAW_ENV_ENABLE_ATUIN' 'SHELL_FORTRESS_RAW_SETTING_ENABLE_ATUIN' "${SHELL_FORTRESS_ENABLE_ATUIN:-unset}" "${SHELL_FORTRESS_SOURCE_ENABLE_ATUIN:-default}"
+      fortress-hud-env-line 'histsize' 'HISTSIZE' 'SHELL_FORTRESS_SETTING_HISTSIZE' 'SHELL_FORTRESS_RAW_ENV_HISTSIZE' 'SHELL_FORTRESS_RAW_SETTING_HISTSIZE' "${HISTSIZE:-unset}" "${SHELL_FORTRESS_SOURCE_HISTSIZE:-default}"
+      fortress-hud-env-line 'savehist' 'SAVEHIST' 'SHELL_FORTRESS_SETTING_SAVEHIST' 'SHELL_FORTRESS_RAW_ENV_SAVEHIST' 'SHELL_FORTRESS_RAW_SETTING_SAVEHIST' "${SAVEHIST:-unset}" "${SHELL_FORTRESS_SOURCE_SAVEHIST:-default}"
+      fortress-hud-env-line 'keytimeout' 'KEYTIMEOUT' 'SHELL_FORTRESS_SETTING_KEYTIMEOUT' 'SHELL_FORTRESS_RAW_ENV_KEYTIMEOUT' 'SHELL_FORTRESS_RAW_SETTING_KEYTIMEOUT' "${KEYTIMEOUT:-unset}" "${SHELL_FORTRESS_SOURCE_KEYTIMEOUT:-default}"
+      fortress-hud-env-line 'prompt_engine' 'SHELL_FORTRESS_PROMPT_ENGINE' 'SHELL_FORTRESS_SETTING_PROMPT_ENGINE' 'SHELL_FORTRESS_RAW_ENV_PROMPT_ENGINE' 'SHELL_FORTRESS_RAW_SETTING_PROMPT_ENGINE' "${SHELL_FORTRESS_ACTIVE_PROMPT_ENGINE:-unset}" "${SHELL_FORTRESS_SOURCE_PROMPT_ENGINE:-default}"
+    fi
+  fi
+}
+
+fortress-hud "$@"

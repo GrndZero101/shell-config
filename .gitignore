@@ -1,0 +1,19 @@
+# Shell-generated history and completion artifacts in profile directories.
+/zsh-*/.zsh_history
+/zsh-*/.zhistory
+/zsh-*/.zcompdump
+/zsh-*/.zcompdump-*
+/zsh-*/.zcompcache/
+/zsh-*/**/*.zwc
+
+# Temporary or runtime scratch space accidentally created inside the repo.
+/zsh-*/tmp/
+/zsh-*/temp/
+/zsh-*/run/
+/zsh-*/runtime/
+
+# Generic editor and OS noise.
+*~
+*.swp
+*.swo
+.DS_Store

@@ -1,0 +1,8 @@
+#autoload
+
+emulate -L zsh
+
+local selected
+
+selected="$(fzf-find-file)" || return 0
+LBUFFER+="${(q)selected}"

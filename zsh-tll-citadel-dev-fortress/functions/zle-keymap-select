@@ -1,0 +1,16 @@
+#autoload
+
+emulate -L zsh
+
+case "${KEYMAP}" in
+  vicmd)
+    SHELL_PROMPT_MODE='N'
+    print -Pn '\e[1 q'
+    ;;
+  *)
+    SHELL_PROMPT_MODE='I'
+    print -Pn '\e[5 q'
+    ;;
+esac
+
+zle reset-prompt

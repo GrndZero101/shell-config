@@ -1,0 +1,23 @@
+#autoload
+
+emulate -L zsh
+
+local selected
+local preview_cmd
+
+preview_cmd="if command -v bat >/dev/null 2>&1; then bat --style=plain --color=always --line-range=:200 -- {}; else sed -n '1,200p' -- {}; fi"
+
+if (( $+commands[fd] )); then
+  selected="$(
+    fd --type f --hidden --follow --exclude .git . \
+      | fzf --height=45% --layout=reverse --border --prompt='file> ' --preview="${preview_cmd}"
+  )" || return 1
+else
+  selected="$(
+    find . -type f -not -path '*/.git/*' -print 2>/dev/null \
+      | sed 's#^\./##' \
+      | fzf --height=45% --layout=reverse --border --prompt='file> ' --preview="${preview_cmd}"
+  )" || return 1
+fi
+
+print -r -- "${selected}"

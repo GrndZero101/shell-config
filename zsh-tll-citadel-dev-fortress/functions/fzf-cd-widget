@@ -1,0 +1,9 @@
+#autoload
+
+emulate -L zsh
+
+local selected
+
+selected="$(fzf-find-dir)" || return 0
+BUFFER="builtin cd -- ${(q)selected}"
+zle accept-line
