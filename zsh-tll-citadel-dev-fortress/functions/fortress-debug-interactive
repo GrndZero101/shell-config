@@ -33,13 +33,15 @@ fortress-debug-interactive-print-module-resolution() {
   local module_name active_source local_path curated_path shadow_state
 
   print -r -- '== Module Resolution =='
-  if (( ${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0} == 0 )); then
+  print -r -- "default modules: ${(j:, :)SHELL_FORTRESS_DEFAULT_MODULES}"
+  print -r -- "disabled modules: ${(j:, :)SHELL_FORTRESS_DISABLED_MODULES}"
+  if (( ${#SHELL_FORTRESS_EFFECTIVE_MODULES[@]:-0} == 0 )); then
     print -r -- 'enabled modules: none'
     return 0
   fi
 
-  print -r -- "enabled modules: ${(j:, :)SHELL_FORTRESS_LOCAL_MODULES}"
-  for module_name in "${SHELL_FORTRESS_LOCAL_MODULES[@]}"; do
+  print -r -- "enabled modules: ${(j:, :)SHELL_FORTRESS_EFFECTIVE_MODULES}"
+  for module_name in "${SHELL_FORTRESS_EFFECTIVE_MODULES[@]}"; do
     active_source="${SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]-missing}"
     local_path="${SHELL_FORTRESS_MODULE_LOCAL_PATHS[${module_name}]-absent}"
     curated_path="${SHELL_FORTRESS_MODULE_CURATED_PATHS[${module_name}]-absent}"

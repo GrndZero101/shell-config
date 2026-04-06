@@ -490,8 +490,8 @@ fortress-hud() {
     runtime_context="${runtime_context}+interactive"
   fi
 
-  if (( ${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0} )); then
-    local_modules_value="${(j:, :)SHELL_FORTRESS_LOCAL_MODULES}"
+  if (( ${#SHELL_FORTRESS_EFFECTIVE_MODULES[@]:-0} )); then
+    local_modules_value="${(j:, :)SHELL_FORTRESS_EFFECTIVE_MODULES}"
   fi
 
   if [[ -n "${KEYMAP:-}" ]]; then
@@ -610,15 +610,17 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" features 'vi_autocomplete_compat' "$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_ZSH_VI_AUTOCOMPLETE_COMPAT:-0}")"
   fortress-hud-line "${render_mode}" features 'autocomplete_loaded' "$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE:-0}")"
   fortress-hud-line "${render_mode}" features 'prompt_mode' "${SHELL_PROMPT_MODE:-unset}"
-  fortress-hud-line "${render_mode}" features 'local_modules' "${local_modules_value}"
+  fortress-hud-line "${render_mode}" features 'enabled_modules' "${local_modules_value}"
+  fortress-hud-line "${render_mode}" features 'default_modules' "${(j:, :)SHELL_FORTRESS_DEFAULT_MODULES}"
+  fortress-hud-line "${render_mode}" features 'disabled_modules' "${(j:, :)SHELL_FORTRESS_DISABLED_MODULES}"
   fortress-hud-line "${render_mode}" features 'atuin_config_dir' "${ATUIN_CONFIG_DIR:-unset}"
   fortress-hud-line "${render_mode}" features 'atuin_theme_dir' "${ATUIN_THEME_DIR:-unset}"
   fortress-hud-blank
 
   fortress-hud-section "${render_mode}" module_resolution '󰈔' 'Module Resolution'
-  fortress-hud-line "${render_mode}" module_resolution 'enabled_count' "${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0}"
-  if (( ${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0} )); then
-    for module_name in "${SHELL_FORTRESS_LOCAL_MODULES[@]}"; do
+  fortress-hud-line "${render_mode}" module_resolution 'enabled_count' "${#SHELL_FORTRESS_EFFECTIVE_MODULES[@]:-0}"
+  if (( ${#SHELL_FORTRESS_EFFECTIVE_MODULES[@]:-0} )); then
+    for module_name in "${SHELL_FORTRESS_EFFECTIVE_MODULES[@]}"; do
       module_summary_text="$(fortress-hud-module-summary "${module_name}")"
       fortress-hud-line "${render_mode}" module_resolution "${module_name}" "${module_summary_text}"
     done

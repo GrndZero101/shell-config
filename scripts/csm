@@ -792,6 +792,27 @@ module_is_installed() {
 }
 
 #
+# Print the default module names declared by one profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 after writing zero or more module names, one per line.
+profile_default_modules() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local profile_file="${SHELL_CONFIG_ROOT}/${profile_name}/profile.zsh"
+  local -a default_modules
+
+  [[ -r "${profile_file}" ]] || return 0
+
+  typeset -ga SHELL_PROFILE_DEFAULT_MODULES=()
+  source "${profile_file}"
+  default_modules=(${(u)SHELL_PROFILE_DEFAULT_MODULES})
+  print -r -l -- "${default_modules[@]}"
+}
+
+#
 # Return whether one module name is available as a repo-curated module.
 # Arguments:
 #   $1 - Profile directory name.
@@ -800,6 +821,24 @@ module_is_installed() {
 #   0 when the curated module exists, non-zero otherwise.
 module_has_curated_source() {
   curated_module_source_file "${1}" "${2}" >/dev/null 2>&1
+}
+
+#
+# Return whether one module name is a profile default.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 when the module is declared as a default module, non-zero otherwise.
+module_is_default() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local module_name="${2}"
+  local -a default_modules
+
+  default_modules=(${(f)"$(profile_default_modules "${profile_name}")"})
+  (( ${default_modules[(Ie)${module_name}]} ))
 }
 
 #
@@ -860,6 +899,35 @@ module_local_function_files() {
 }
 
 #
+# Print one module list assignment from env.zsh, one module name per line.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Assignment name such as SHELL_FORTRESS_LOCAL_MODULES.
+# Returns:
+#   0 after writing zero or more module names.
+env_file_module_values() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local assignment_name="${2}"
+  local env_file current_line current_value
+  local -a parsed_words existing_modules
+
+  env_file="$(profile_env_file "${profile_name}")" || return 1
+  [[ -r "${env_file}" ]] || return 0
+
+  while IFS= read -r current_line || [[ -n "${current_line}" ]]; do
+    [[ "${current_line}" == ${assignment_name}=* ]] || continue
+    current_value="${current_line#${assignment_name}=}"
+    parsed_words=(${(z)current_value})
+    existing_modules=(${parsed_words:#\(})
+    existing_modules=(${existing_modules:#\)})
+    print -r -l -- "${existing_modules[@]}"
+    return 0
+  done < "${env_file}"
+}
+
+#
 # Return whether one module is enabled in the user's env.zsh file.
 # Arguments:
 #   $1 - Profile directory name.
@@ -867,24 +935,23 @@ module_local_function_files() {
 # Returns:
 #   0 when the module name appears in SHELL_FORTRESS_LOCAL_MODULES, non-zero otherwise.
 module_is_enabled() {
+  emulate -L zsh
+
   local profile_name="${1}"
   local module_name="${2}"
-  local env_file current_line current_value
-  local -a parsed_words existing_modules
+  local -a default_modules enabled_modules disabled_modules effective_modules
 
-  env_file="$(profile_env_file "${profile_name}")" || return 1
-  [[ -r "${env_file}" ]] || return 1
+  default_modules=(${(f)"$(profile_default_modules "${profile_name}")"})
+  enabled_modules=(${(f)"$(env_file_module_values "${profile_name}" SHELL_FORTRESS_LOCAL_MODULES)"})
+  disabled_modules=(${(f)"$(env_file_module_values "${profile_name}" SHELL_FORTRESS_DISABLED_MODULES)"})
+  effective_modules=(${default_modules} ${enabled_modules})
+  effective_modules=(${(u)effective_modules})
 
-  while IFS= read -r current_line || [[ -n "${current_line}" ]]; do
-    [[ "${current_line}" == SHELL_FORTRESS_LOCAL_MODULES=* ]] || continue
-    current_value="${current_line#SHELL_FORTRESS_LOCAL_MODULES=}"
-    parsed_words=(${(z)current_value})
-    existing_modules=(${parsed_words:#\(})
-    existing_modules=(${existing_modules:#\)})
-    (( ${existing_modules[(Ie)${module_name}]} )) && return 0
-  done < "${env_file}"
+  if (( ${disabled_modules[(Ie)${module_name}]} )); then
+    return 1
+  fi
 
-  return 1
+  (( ${effective_modules[(Ie)${module_name}]} ))
 }
 
 #
@@ -957,6 +1024,87 @@ enable_local_module_in_env_file() {
   fi
 
   mv -- "${temp_file}" "${env_file}"
+}
+
+#
+# Rewrite one module-list assignment within env.zsh.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Assignment name such as SHELL_FORTRESS_LOCAL_MODULES.
+#   $@ - Zero or more module names to persist.
+# Returns:
+#   0 on success, non-zero on write failure.
+set_module_list_in_env_file() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local assignment_name="${2}"
+  shift 2
+  local env_file temp_file current_line
+  local found_assignment=0
+  local -a module_names
+
+  env_file="$(profile_env_file "${profile_name}")" || return 1
+  init_env_file "${profile_name}" || return 1
+  temp_file="${env_file}.tmp.$$"
+  module_names=(${(u)@})
+
+  while IFS= read -r current_line || [[ -n "${current_line}" ]]; do
+    if [[ "${current_line}" == ${assignment_name}=* ]]; then
+      found_assignment=1
+      if (( ${#module_names[@]} )); then
+        print -r -- "${assignment_name}=(${(j: :)module_names})" >> "${temp_file}"
+      fi
+    else
+      print -r -- "${current_line}" >> "${temp_file}"
+    fi
+  done < "${env_file}"
+
+  if (( ! found_assignment && ${#module_names[@]} )); then
+    print -r -- '' >> "${temp_file}"
+    print -r -- "${assignment_name}=(${(j: :)module_names})" >> "${temp_file}"
+  fi
+
+  mv -- "${temp_file}" "${env_file}"
+}
+
+#
+# Ensure one module name appears in SHELL_FORTRESS_DISABLED_MODULES within env.zsh.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 on success, non-zero on write failure.
+enable_disabled_module_in_env_file() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local module_name="${2}"
+  local -a disabled_modules
+
+  disabled_modules=(${(f)"$(env_file_module_values "${profile_name}" SHELL_FORTRESS_DISABLED_MODULES)"})
+  disabled_modules+=("${module_name}")
+  disabled_modules=(${(u)disabled_modules})
+  set_module_list_in_env_file "${profile_name}" SHELL_FORTRESS_DISABLED_MODULES "${disabled_modules[@]}"
+}
+
+#
+# Ensure one module name is removed from SHELL_FORTRESS_DISABLED_MODULES within env.zsh.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 on success, non-zero on write failure.
+disable_disabled_module_in_env_file() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local module_name="${2}"
+  local -a disabled_modules
+
+  disabled_modules=(${(f)"$(env_file_module_values "${profile_name}" SHELL_FORTRESS_DISABLED_MODULES)"})
+  disabled_modules=(${disabled_modules:#${module_name}})
+  set_module_list_in_env_file "${profile_name}" SHELL_FORTRESS_DISABLED_MODULES "${disabled_modules[@]}"
 }
 
 #
@@ -1580,6 +1728,12 @@ enable_module() {
     return 1
   fi
 
+  disable_disabled_module_in_env_file "${profile_name}" "${module_name}" || return 1
+  if module_is_default "${profile_name}" "${module_name}"; then
+    print -- "enable-module: ensured default module '${module_name}' is enabled in ${user_config_dir}/env.zsh"
+    return 0
+  fi
+
   enable_local_module_in_env_file "${profile_name}" "${module_name}" || return 1
   print -- "enable-module: ensured '${module_name}' is enabled in ${user_config_dir}/env.zsh"
 }
@@ -1626,6 +1780,11 @@ disable_module() {
   user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
 
   disable_local_module_in_env_file "${profile_name}" "${module_name}" || return 1
+  if module_is_default "${profile_name}" "${module_name}"; then
+    enable_disabled_module_in_env_file "${profile_name}" "${module_name}" || return 1
+  else
+    disable_disabled_module_in_env_file "${profile_name}" "${module_name}" || return 1
+  fi
   print -- "disable-module: ensured '${module_name}' is disabled in ${user_config_dir}/env.zsh"
 }
 

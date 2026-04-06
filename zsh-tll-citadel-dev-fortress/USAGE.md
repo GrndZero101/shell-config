@@ -591,6 +591,12 @@ Typical flow:
 2. open a fresh shell
 3. only use `csm install-module <name>` when you want to create a user-local fork
 
+Fortress default:
+
+- `git` is enabled by default in `zsh-tll-citadel-dev-fortress`
+- `csm enable-module git` is still safe and mainly clears any explicit local opt-out
+- `csm disable-module git` is the operator path when you want to turn the default git module off
+
 Current and target module-lifecycle design is described in:
 
 - [module-lifecycle.md](/home/timl/projects/tboss/shell-config/docs/module-lifecycle.md)

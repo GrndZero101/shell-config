@@ -73,6 +73,30 @@ teardown() {
   [[ "$clean_output" == *"active:    curated"* ]]
 }
 
+@test "fortress git module is enabled by default and can be explicitly disabled" {
+  local repo_root
+  repo_root="$(shell_config_repo_root)"
+
+  run_zsh_in_test_env "$repo_root/scripts/csm list-modules zsh-tll-citadel-dev-fortress"
+  [ "$status" -eq 0 ]
+  local clean_output
+  clean_output="$(strip_ansi "$output")"
+  [[ "$clean_output" == *"git                 git, scm, productivity"* ]]
+  [[ "$clean_output" == *"enabled"* ]]
+
+  run_zsh_in_test_env "$repo_root/scripts/csm disable-module git zsh-tll-citadel-dev-fortress"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"disable-module: ensured 'git' is disabled"* ]]
+
+  run_zsh_in_test_env "$repo_root/scripts/csm list-modules zsh-tll-citadel-dev-fortress"
+  [ "$status" -eq 0 ]
+  clean_output="$(strip_ansi "$output")"
+  [[ "$clean_output" == *"git                 git, scm, productivity"* ]]
+  [[ "$clean_output" == *"disabled"* ]]
+  assert_path_exists "$XDG_CONFIG_HOME/shell-config.local/zsh-tll-citadel-dev-fortress/env.zsh"
+  [[ "$(cat "$XDG_CONFIG_HOME/shell-config.local/zsh-tll-citadel-dev-fortress/env.zsh")" == *"SHELL_FORTRESS_DISABLED_MODULES=(git)"* ]]
+}
+
 @test "reset-profile preserves shell-config.local by default but removes mutable state" {
   local repo_root
   local profile="zsh-tll-citadel-dev-fortress"
@@ -127,12 +151,16 @@ teardown() {
   run_interactive_zsh_in_test_env "fortress-hud"
   [ "$status" -eq 0 ]
   clean_output="$(strip_ansi "$output")"
-  [[ "$clean_output" == *"[module_resolution] enabled_count: 1"* ]]
+  [[ "$clean_output" == *"[module_resolution] enabled_count: 2"* ]]
+  [[ "$clean_output" == *"[module_resolution] git: active=curated shadowing=no"* ]]
   [[ "$clean_output" == *"[module_resolution] television: active=local-fork shadowing=curated"* ]]
 
   run_interactive_zsh_in_test_env "fortress-debug-interactive"
   [ "$status" -eq 0 ]
   clean_output="$(strip_ansi "$output")"
   [[ "$clean_output" == *"== Module Resolution =="* ]]
+  [[ "$clean_output" == *"default modules: git"* ]]
+  [[ "$clean_output" == *"enabled modules: git, television"* ]]
+  [[ "$clean_output" == *"git: active=curated shadowing=no"* ]]
   [[ "$clean_output" == *"television: active=local-fork shadowing=curated"* ]]
 }
