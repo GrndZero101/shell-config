@@ -1,0 +1,11 @@
+# Open the television git-repository picker.
+#
+# Arguments:
+#   $@: Optional television arguments.
+# Returns:
+#   0 on success, non-zero if television fails.
+# Side effects:
+#   Launches the interactive television UI.
+tv-git-repos() {
+  tv-fortress-run git-repos "$@"
+}

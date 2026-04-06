@@ -1,0 +1,11 @@
+# Print running Docker containers in a compact table.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when Docker is unavailable or the command fails.
+# Side effects:
+#   Calls the Docker CLI.
+docker-ps-running() {
+  docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+}

@@ -1,0 +1,9 @@
+# Print the active AWS profile.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing the profile or unset.
+aws-profile() {
+  print -r -- "${AWS_PROFILE:-unset}"
+}

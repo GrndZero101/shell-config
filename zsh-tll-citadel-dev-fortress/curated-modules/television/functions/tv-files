@@ -1,0 +1,11 @@
+# Open the default television file picker.
+#
+# Arguments:
+#   $@: Optional television arguments.
+# Returns:
+#   0 on success, non-zero if television fails.
+# Side effects:
+#   Launches the interactive television UI.
+tv-files() {
+  tv-fortress-run "$@"
+}

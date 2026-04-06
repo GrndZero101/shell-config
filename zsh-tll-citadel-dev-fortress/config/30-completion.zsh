@@ -33,4 +33,8 @@ else
   compinit -d "${SHELL_PROFILE_CACHE_DIR}/.zcompdump"
   autoload -Uz _csm
   compdef _csm csm
+  if [[ -f "${SHELL_PROFILE_EXTERNAL_ZSH_COMPLETION_DIR}/_ft" ]] && [[ -z "${SHELL_PROFILE_FT_COMPLETION_LOADED:-}" ]]; then
+    source "${SHELL_PROFILE_EXTERNAL_ZSH_COMPLETION_DIR}/_ft"
+    typeset -g SHELL_PROFILE_FT_COMPLETION_LOADED=1
+  fi
 fi

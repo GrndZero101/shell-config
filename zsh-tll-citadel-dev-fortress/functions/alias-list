@@ -1,0 +1,104 @@
+# List currently defined aliases in a compact fortress table.
+#
+# Arguments:
+#   -i, --interactive - open a picker instead of printing the full table.
+# Returns:
+#   0 on success, non-zero on invalid usage or cancelled interactive selection.
+# Side effects:
+#   Reads the live alias table and may invoke fzf or a native select prompt.
+alias-list() {
+  emulate -L zsh
+  setopt localoptions no_aliases
+
+  local interactive_mode=0
+  local current_line alias_name alias_value alias_source selected_line
+  local header_alias='alias'
+  local header_source='source'
+  integer max_alias_width=5
+  integer max_source_width=6
+  local -a records alias_names
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      -i|--interactive)
+        interactive_mode=1
+        ;;
+      --*)
+        print -u2 -- "usage: alias-list [-i|--interactive]"
+        return 1
+        ;;
+      *)
+        print -u2 -- "usage: alias-list [-i|--interactive]"
+        return 1
+        ;;
+    esac
+    shift
+  done
+
+  alias_names=(${(ok)aliases})
+  if (( ${#alias_names[@]} == 0 )); then
+    print -u2 -- 'alias-list: no aliases are currently defined'
+    return 1
+  fi
+
+  for alias_name in "${alias_names[@]}"; do
+    alias_value="${aliases[${alias_name}]}"
+    alias_source="${SHELL_FORTRESS_ALIAS_SOURCES[${alias_name}]-unknown}"
+    (( ${#alias_name} > max_alias_width )) && max_alias_width=${#alias_name}
+    (( ${#alias_source} > max_source_width )) && max_source_width=${#alias_source}
+    records+=("${alias_name}"$'\t'"${alias_source}"$'\t'"${alias_value}")
+  done
+
+  if (( interactive_mode )); then
+    if (( $+commands[fzf] )); then
+      selected_line="$(
+        printf '%s\n' "${records[@]}" | fzf \
+          --ansi \
+          --border \
+          --height=60% \
+          --layout=reverse \
+          --delimiter=$'\t' \
+          --with-nth=1,2,3 \
+          --prompt='alias> ' \
+          --header='󰌌 fortress alias picker' \
+          --preview='printf "alias: %s\nsource: %s\nexpansion: %s\n" {1} {2} {3}'
+      )" || return 1
+    else
+      local selected_name
+      if [[ ! -t 0 ]]; then
+        print -u2 -- 'alias-list: interactive mode requires a terminal'
+        return 1
+      fi
+
+      print -P -- "%F{221}fzf not found; using zsh select menu.%f"
+      select selected_name in "${alias_names[@]}"; do
+        [[ -n "${selected_name}" ]] || {
+          print -u2 -- 'Invalid selection.'
+          continue
+        }
+        selected_line="${selected_name}"$'\t'"${SHELL_FORTRESS_ALIAS_SOURCES[${selected_name}]-unknown}"$'\t'"${aliases[${selected_name}]}"
+        break
+      done
+    fi
+
+    [[ -n "${selected_line}" ]] || return 1
+    alias_name="${selected_line%%$'\t'*}"
+    selected_line="${selected_line#*$'\t'}"
+    alias_source="${selected_line%%$'\t'*}"
+    alias_value="${selected_line#*$'\t'}"
+    print -P -- "%F{81}%Balias%b%f     ${alias_name}"
+    print -P -- "%F{110}source:%f    ${alias_source}"
+    print -P -- "%F{110}expands:%f   ${alias_value}"
+    return 0
+  fi
+
+  print -P -- "%F{81}%B󰌌 Aliases%b%f"
+  print -P -- "%F{244}${(r:${max_alias_width}:)header_alias} ${(r:${max_source_width}:)header_source} expansion%f"
+  for current_line in "${records[@]}"; do
+    alias_name="${current_line%%$'\t'*}"
+    current_line="${current_line#*$'\t'}"
+    alias_source="${current_line%%$'\t'*}"
+    alias_value="${current_line#*$'\t'}"
+    print -r -- "${(r:${max_alias_width}:)alias_name} ${(r:${max_source_width}:)alias_source} ${alias_value}"
+  done
+}

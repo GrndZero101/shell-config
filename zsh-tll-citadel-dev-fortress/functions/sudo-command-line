@@ -1,0 +1,32 @@
+# Prepend sudo to the current command line.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after updating the editing buffer.
+# Side effects:
+#   Mutates BUFFER and CURSOR in the active zle widget context.
+sudo-command-line() {
+  emulate -L zsh
+
+  local leading_space command_text
+
+  leading_space="${BUFFER%%[^[:space:]]*}"
+  command_text="${BUFFER#"${leading_space}"}"
+
+  if [[ -z "${command_text}" ]]; then
+    BUFFER="${leading_space}sudo "
+    CURSOR=${#BUFFER}
+    zle redisplay
+    return 0
+  fi
+
+  if [[ "${command_text}" == sudo\ * || "${command_text}" == sudo ]]; then
+    zle redisplay
+    return 0
+  fi
+
+  BUFFER="${leading_space}sudo ${command_text}"
+  CURSOR=$(( CURSOR + 5 ))
+  zle redisplay
+}

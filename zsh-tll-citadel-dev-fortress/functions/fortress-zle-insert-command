@@ -1,0 +1,24 @@
+# Insert a command fragment into the active command line.
+#
+# Arguments:
+#   $1 - Command fragment to insert at the cursor.
+# Returns:
+#   0 after updating the buffer, non-zero on invalid usage.
+# Side effects:
+#   Mutates LBUFFER in the active zle widget context and redraws the prompt.
+fortress-zle-insert-command() {
+  emulate -L zsh
+
+  local command_fragment="${1:-}"
+  local insertion_text
+
+  [[ -n "${command_fragment}" ]] || return 1
+
+  insertion_text="${command_fragment}"
+  if [[ -n "${LBUFFER}" && "${LBUFFER[-1]}" != [[:space:]] ]]; then
+    insertion_text=" ${command_fragment}"
+  fi
+
+  LBUFFER+="${insertion_text}"
+  zle redisplay
+}

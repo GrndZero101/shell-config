@@ -1,0 +1,11 @@
+# Print the active Docker context name.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when Docker is unavailable or the command fails.
+# Side effects:
+#   Calls the Docker CLI.
+docker-context-name() {
+  docker context show
+}

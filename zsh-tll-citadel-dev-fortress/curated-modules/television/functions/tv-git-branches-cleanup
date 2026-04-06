@@ -1,0 +1,203 @@
+# Open a television picker for actionable local git branch cleanup candidates.
+#
+# Arguments:
+#   --force: Skip the final cleanup confirmation prompt.
+#   --keep-remote: Delete only local branches and keep matching origin branches.
+#   --: Forward the remaining arguments directly to television.
+# Returns:
+#   0 when cleanup succeeds or nothing is selected, otherwise non-zero.
+# Side effects:
+#   Reads git refs, launches the television UI, may switch branches, and may
+#   delete local and remote branches.
+tv-git-branches-cleanup() {
+  emulate -L zsh
+
+  local force_mode=0
+  local keep_remote=0
+  local base_branch=''
+  local selection=''
+  local target_branch=''
+  local action=''
+  local -a tv_args
+  local -a selected_branches
+  local -a cleanup_plan
+  local line=''
+  local confirm_reply=''
+
+  # Classify one local branch for cleanup routing.
+  #
+  # Arguments:
+  #   $1: Branch name to inspect.
+  # Returns:
+  #   0 after printing "<action> <remote-state> <note>" for actionable branches,
+  #   otherwise 1 for unsupported branches.
+  # Side effects:
+  #   Reads git refs, ancestry, metadata, and patch-equivalence state.
+  _tv_git_branch_cleanup_classify() {
+    local branch_name=$1
+    local remote_state='local-only'
+    local source_branch=''
+    local final_branch=''
+    local cherry_output=''
+
+    command git show-ref --verify --quiet "refs/remotes/origin/${branch_name}" && remote_state='origin'
+
+    if [[ "${branch_name}" == *--wip-* ]]; then
+      source_branch="$(git config --get "branch.${branch_name}.fortresssourcebranch" 2>/dev/null)" || source_branch=''
+      final_branch="$(git config --get "branch.${branch_name}.fortressfinalbranch" 2>/dev/null)" || final_branch=''
+      if [[ -n "${final_branch}" ]]; then
+        print -r -- "temp ${remote_state} final=${final_branch}"
+      elif [[ -n "${source_branch}" ]]; then
+        print -r -- "temp ${remote_state} source=${source_branch}"
+      else
+        print -r -- "temp ${remote_state} rollback"
+      fi
+      return 0
+    fi
+
+    if command git merge-base --is-ancestor "${branch_name}" "${base_branch}"; then
+      print -r -- "merged ${remote_state} merged-into-${base_branch}"
+      return 0
+    fi
+
+    if command git diff --quiet "${base_branch}" "${branch_name}" >/dev/null 2>&1; then
+      print -r -- "squash ${remote_state} tree-equal-to-${base_branch}"
+      return 0
+    fi
+
+    cherry_output="$(command git cherry "${base_branch}" "${branch_name}" 2>/dev/null)" || return 1
+    if [[ -n "${cherry_output}" ]] && [[ -z "$(print -r -- "${cherry_output}" | command awk '$1 != "-" { print; exit 0 }')" ]]; then
+      print -r -- "squash ${remote_state} patch-equivalent-to-${base_branch}"
+      return 0
+    fi
+
+    return 1
+  }
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force)
+        force_mode=1
+        shift
+        ;;
+      --keep-remote)
+        keep_remote=1
+        shift
+        ;;
+      --help|-h)
+        print -r -- 'usage: tv-git-branches-cleanup [--force] [--keep-remote] [-- <tv args...>]'
+        return 0
+        ;;
+      --)
+        shift
+        tv_args=("$@")
+        break
+        ;;
+      *)
+        print -u2 -- 'usage: tv-git-branches-cleanup [--force] [--keep-remote] [-- <tv args...>]'
+        return 1
+        ;;
+    esac
+  done
+
+  (( $+commands[tv] )) || {
+    print -u2 -- 'tv-git-branches-cleanup: tv is not installed'
+    return 1
+  }
+  command git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+    print -u2 -- 'tv-git-branches-cleanup: not inside a git repository'
+    return 1
+  }
+  if [[ -n "$(command git status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+    print -u2 -- 'tv-git-branches-cleanup: worktree is not clean; commit or stash changes first'
+    return 1
+  fi
+
+  base_branch="$(git-primary-branch)" || return 1
+  if [[ -z "$(
+    "${ZDOTDIR}/curated-modules/television/scripts/git-branches-channel.zsh" cleanup-source 2>/dev/null
+  )" ]]; then
+    print -r -- "tv-git-branches-cleanup: no actionable cleanup candidates in $(command git rev-parse --show-toplevel 2>/dev/null)"
+    return 0
+  fi
+
+  selection="$(
+    tv-fortress-run \
+      fortress-git-branches-cleanup \
+      "${tv_args[@]}"
+  )"
+
+  [[ -n "${selection}" ]] || return 0
+  selected_branches=(${(f)selection})
+
+  for target_branch in "${selected_branches[@]}"; do
+    command git show-ref --verify --quiet "refs/heads/${target_branch}" || continue
+    line="$(_tv_git_branch_cleanup_classify "${target_branch}")" || continue
+    cleanup_plan+=("${target_branch} ${line}")
+  done
+
+  [[ ${#cleanup_plan[@]} -gt 0 ]] || return 0
+
+  if (( ! force_mode )); then
+    if [[ ! -t 0 ]]; then
+      print -u2 -- 'tv-git-branches-cleanup: no interactive terminal available; rerun with --force for non-interactive use'
+      return 1
+    fi
+
+    print -r -- 'tv-git-branches-cleanup plan:'
+    for line in "${cleanup_plan[@]}"; do
+      print -r -- "  ${line}"
+    done
+    if (( keep_remote )); then
+      print -r -- 'tv-git-branches-cleanup remote cleanup: disabled'
+    else
+      print -r -- 'tv-git-branches-cleanup remote cleanup: enabled'
+    fi
+    printf '%s' 'Proceed with branch cleanup? [y/N] '
+    read -r confirm_reply
+    [[ "${confirm_reply:l}" == 'y' || "${confirm_reply:l}" == 'yes' ]] || {
+      print -u2 -- 'tv-git-branches-cleanup: cancelled'
+      return 1
+    }
+  fi
+
+  for line in "${cleanup_plan[@]}"; do
+    target_branch="${line%% *}"
+    action="${${line#* }%% *}"
+
+    command git show-ref --verify --quiet "refs/heads/${target_branch}" || continue
+
+    case "${action}" in
+      merged)
+        if (( keep_remote )); then
+          gdone "${target_branch}" --force --keep-remote || return 1
+        else
+          gdone "${target_branch}" --force || return 1
+        fi
+        ;;
+      temp)
+        greframe-rollback "${target_branch}" || return 1
+        if (( keep_remote )); then
+          print -r -- "tv-git-branches-cleanup kept temp remote branch: origin/${target_branch}"
+        elif command git show-ref --verify --quiet "refs/remotes/origin/${target_branch}"; then
+          command git push origin --delete "${target_branch}" || return 1
+          print -r -- "tv-git-branches-cleanup removed temp remote branch: origin/${target_branch}"
+        else
+          print -r -- "tv-git-branches-cleanup temp remote branch not found: origin/${target_branch}"
+        fi
+        ;;
+      squash)
+        command git branch -D "${target_branch}" || return 1
+        print -r -- "tv-git-branches-cleanup removed squash-equivalent branch: ${target_branch}"
+        if (( keep_remote )); then
+          print -r -- "tv-git-branches-cleanup kept remote branch: origin/${target_branch}"
+        elif command git show-ref --verify --quiet "refs/remotes/origin/${target_branch}"; then
+          command git push origin --delete "${target_branch}" || return 1
+          print -r -- "tv-git-branches-cleanup removed remote branch: origin/${target_branch}"
+        else
+          print -r -- "tv-git-branches-cleanup remote branch not found: origin/${target_branch}"
+        fi
+        ;;
+    esac
+  done
+}

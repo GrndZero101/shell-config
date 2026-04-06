@@ -5,6 +5,11 @@ Practical usage notes for the shell profiles in this repository, with emphasis o
 > [!NOTE]
 > This guide describes the current `zsh-clean` and `zsh-tll-citadel-dev-fortress` behavior.
 > `zsh-zero` is intentionally minimal and does not provide the same hotkey ergonomics.
+> Cross-platform support status itself lives in
+> [`docs/platform-support.md`](/home/timl/projects/tboss/shell-config/docs/platform-support.md).
+> Planning and milestone tracking live in [`docs/ROADMAP.md`](/home/timl/projects/tboss/shell-config/docs/ROADMAP.md)
+> and [`docs/milestones/README.md`](/home/timl/projects/tboss/shell-config/docs/milestones/README.md).
+> This file is for operational shell behavior only.
 
 ## Line Editor Modes
 
@@ -151,6 +156,27 @@ You may see different results between:
 If a key works in one terminal and not another, the shell config may still be correct.
 The difference is often the escape sequence being emitted by the terminal.
 
+## Host Recommendations
+
+If you are validating `shell-config` on a new host for the first time:
+
+- start with `zsh-clean`
+- confirm bootstrap, profile selection, and basic line-editing behavior first
+- only then move to `zsh-tll-citadel-dev-fortress`
+
+This is especially relevant on:
+
+- macOS
+- fresh Linux hosts
+- WSL2 installs with a new terminal stack
+
+If you are unsure whether a failure is host-specific or profile-specific:
+
+1. reset the current mutable shell state with `csm reset-profile`
+2. switch back to `zsh-clean`
+3. verify the simpler profile first
+4. only then retry `zsh-tll-citadel-dev-fortress` and any opt-in modules
+
 ## Inspecting Current Bindings
 
 Show the active bindings:
@@ -176,6 +202,33 @@ Search for a particular sequence or widget:
 ```shell
 bindkey | rg 'up-line-or-search|down-line-or-search|history-incremental-search-backward'
 ```
+
+## Operator Cleanup Commands
+
+The repo now has three different cleanup layers:
+
+| Command | Purpose |
+| --- | --- |
+| `csm clean` | Remove generated cache and runtime artifacts |
+| `csm clear-history` | Truncate history for the current profile or all profiles |
+| `csm reset-profile` | Reset mutable profile state for testing and clean-state recovery |
+
+`csm reset-profile` is the strong operator path when you want to reproduce a
+fresh mutable-state baseline without touching the tracked checkout.
+
+Examples:
+
+```shell
+csm reset-profile
+csm reset-profile zsh-tll-citadel-dev-fortress
+csm reset-profile --all
+csm reset-profile --include-local --force zsh-tll-citadel-dev-fortress
+```
+
+By default, `reset-profile` removes profile state, cache, runtime files, data,
+and non-shared history.
+Use `--include-local` only when you also want to remove user-owned
+`shell-config.local/<profile>` overrides.
 
 ## Troubleshooting Key Sequences
 

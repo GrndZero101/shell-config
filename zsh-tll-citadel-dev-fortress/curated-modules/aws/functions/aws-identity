@@ -1,0 +1,13 @@
+# Print a compact AWS identity summary.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when the AWS CLI call fails.
+# Side effects:
+#   Calls the AWS CLI.
+aws-identity() {
+  aws sts get-caller-identity \
+    --query '{account:Account, arn:Arn, user_id:UserId}' \
+    --output table
+}

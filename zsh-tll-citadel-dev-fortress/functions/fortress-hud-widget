@@ -1,0 +1,13 @@
+# Launch the fortress HUD from zle.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after queuing the HUD command, non-zero when the current buffer is not empty.
+# Side effects:
+#   Executes `fortress-hud --pretty` through the active command line.
+fortress-hud-widget() {
+  emulate -L zsh
+
+  fortress-zle-run-command 'fortress-hud --pretty'
+}

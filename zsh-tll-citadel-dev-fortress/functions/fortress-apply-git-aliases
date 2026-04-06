@@ -20,6 +20,27 @@ alias gs='git status --short --branch'
 alias gsw='git switch'
 alias gwtl='git worktree list'
 
+if (( $+functions[fortress-register-alias-source] )); then
+  fortress-register-alias-source core \
+    g \
+    ga \
+    gb \
+    gc \
+    gca \
+    gcam \
+    gco \
+    gd \
+    gds \
+    gf \
+    gl \
+    gp \
+    gpf \
+    gr \
+    gs \
+    gsw \
+    gwtl
+fi
+
 compdef \
   g=git \
   ga=git \

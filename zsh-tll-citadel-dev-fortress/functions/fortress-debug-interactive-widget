@@ -1,0 +1,13 @@
+# Launch the fortress interactive debug view from zle.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after queuing the debug command, non-zero when the current buffer is not empty.
+# Side effects:
+#   Executes `fortress-debug-interactive` through the active command line.
+fortress-debug-interactive-widget() {
+  emulate -L zsh
+
+  fortress-zle-run-command 'fortress-debug-interactive'
+}

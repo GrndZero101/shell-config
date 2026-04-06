@@ -23,7 +23,7 @@ typeset -gr TARGET_CSM="${SCRIPT_DIR}/csm"
 typeset -gr HOME_ZSHENV="${HOME}/.zshenv"
 typeset -gr LOCAL_BIN_DIR="${HOME}/.local/bin"
 typeset -gr LOCAL_CSM="${LOCAL_BIN_DIR}/csm"
-typeset -gr SHELL_CONFIG_STATE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config"
+typeset -gr SHELL_CONFIG_STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/shell-config"
 typeset -gr SHELL_CONFIG_STATE_FILE="${SHELL_CONFIG_STATE_DIR}/active-profile"
 typeset -gr SHELL_PROFILE_STATE_ROOT="${XDG_STATE_HOME:-${HOME}/.local/state}/shell-config"
 typeset -gr SHELL_PROFILE_CACHE_ROOT="${XDG_CACHE_HOME:-${HOME}/.cache}/shell-config"
@@ -46,22 +46,174 @@ typeset -gr REF_FZFTAB_HOME="${SHELL_PROFILE_DATA_ROOT}/zsh-ref-fzftab/fzf-tab/f
 # Returns:
 #   0 after writing usage information to stdout.
 usage() {
-  cat <<'EOF'
-Usage: csm <command>
+  print -P -- "%F{81}%B󰒓 Config Shell Manager%b%f %F{244}(csm)%f"
+  print -P -- "%F{244}Manage shell profiles, fortress user extensions, and operator maintenance tasks.%f"
+  print
+  print -P -- "%F{110}Usage:%f"
+  print -P -- "  %Bcsm%b <command> [args]"
+  print -P -- "  %Bcsm%b %F{244}help%f"
+  print -P -- "  %Bcsm%b %F{244}--help%f"
+  print
+  print -P -- "%F{110}Interaction policy:%f CLI-first by default. Use %B-i%b or %B--interactive%b for picker flows, %B--no-interactive%b to force deterministic CLI mode, or set %BCSM_INTERACTIVE=1%b for a human-friendly default."
+  print
+  csm-print-command-section '󰖳 Core' \
+    'bootstrap|Install ~/.zshenv and ~/.local/bin/csm as symlinks to this repository' \
+    'check|Validate profile contract files and zsh syntax' \
+    'clean|Remove generated cache and runtime files' \
+    'clear-history|Clear history for the current profile or all profiles' \
+    'reset-profile|Reset mutable profile state for testing and clean-state recovery'
+  csm-print-command-section '󰒓 Profile' \
+    'select|Choose a shell profile and exec a fresh zsh' \
+    'describe-profile|Print profile contract metadata'
+  csm-print-command-section '󰘳 Settings' \
+    'init-settings|Create a profile settings file from its template' \
+    'edit-settings|Ensure a profile settings file exists, then open it in $VISUAL or $EDITOR'
+  csm-print-command-section '󰈔 Modules' \
+    'list-modules|List curated and local module state' \
+    'describe-module|Print one module summary and installation state' \
+    'install-module|Create a user-local fork of a curated module and enable it' \
+    'enable-module|Enable a curated or local module in SHELL_FORTRESS_LOCAL_MODULES' \
+    'disable-module|Disable a curated or local module in SHELL_FORTRESS_LOCAL_MODULES' \
+    'remove-module|Remove a local module file and matching local functions' \
+    'sync-curated-modules|Reset local forks of curated modules back to the current curated version' \
+    'init-module|Create a starter local module and sample autoload function'
+  csm-print-command-section '󰊢 Assets' \
+    'install-fzf-tab|Install the official fzf-tab repository for the reference profile' \
+    'install-zinit|Install the fortress zinit plugin manager into profile-local data' \
+    'sync-catppuccin|Refresh vendored Catppuccin theme assets for supported tools' \
+    'debug-fzf-tab|Print environment and completion diagnostics for fzf-tab troubleshooting'
+  print -P -- "%F{110}Common flows:%f"
+  print -P -- "  %F{244}Fortress settings:%f csm init-settings && csm edit-settings"
+  print -P -- "  %F{244}Curated module:%f csm enable-module git"
+  print -P -- "  %F{244}Fork curated module:%f csm install-module television"
+  print -P -- "  %F{244}Interactive module enable:%f CSM_INTERACTIVE=1 csm enable-module"
+  print -P -- "  %F{244}Module scaffold:%f csm init-module aws_local && csm enable-module aws_local"
+  print -P -- "  %F{244}Profile switch:%f csm select -i"
+  print -P -- "  %F{244}Profile reset:%f csm reset-profile zsh-tll-citadel-dev-fortress"
+}
 
-Commands:
-  bootstrap  Install ~/.zshenv and ~/.local/bin/csm as symlinks to this repository
-  install-fzf-tab  Install the official fzf-tab repository for the reference profile
-  install-zinit  Install the fortress zinit plugin manager into profile-local data
-  select     Choose a shell profile and exec a fresh zsh, optionally with --clean or a direct profile name
-  init-settings  Create a profile settings file from its template in the user's XDG config directory
-  edit-settings  Ensure a profile settings file exists, then open it in \$VISUAL or \$EDITOR
-  check      Validate profile contract files and zsh syntax
-  debug-fzf-tab  Print environment and completion diagnostics for fzf-tab troubleshooting
-  clean      Remove generated cache files such as zcompdump data
-  clear-history  Clear zsh history for the current profile or all profiles
-  sync-catppuccin  Refresh vendored Catppuccin theme assets for supported tools
-EOF
+# Print one categorized usage section.
+# Arguments:
+#   $1 - Section title.
+#   $@ - Command rows in name|description format.
+# Returns:
+#   0 after writing the section.
+# Side effects:
+#   Writes formatted help text to stdout.
+csm-print-command-section() {
+  local section_title="$1"
+  shift
+  local row command_name command_desc
+
+  print -P -- "%F{117}${section_title}%f"
+  for row in "$@"; do
+    command_name="${row%%|*}"
+    command_desc="${row#*|}"
+    print -P -- "  %F{114}${(r:18:)command_name}%f ${command_desc}"
+  done
+  print
+}
+
+#
+# Print one bold section header for richer operator-style output.
+# Arguments:
+#   $1 - Icon-prefixed section title.
+#   $2 - Optional trailing detail.
+# Returns:
+#   0 after writing the heading to stdout.
+csm-print-section-header() {
+  local section_title="$1"
+  local section_detail="${2:-}"
+
+  if [[ -n "${section_detail}" ]]; then
+    print -P -- "%F{81}%B${section_title}%b%f %F{244}${section_detail}%f"
+  else
+    print -P -- "%F{81}%B${section_title}%b%f"
+  fi
+}
+
+#
+# Colorize one module source label.
+# Arguments:
+#   $1 - Source label such as curated or local.
+# Returns:
+#   0 after printing the styled label.
+csm-format-module-source() {
+  local source_state="$1"
+  local target_width="$2"
+  local padded_state
+
+  padded_state="$(printf '%*s' "${target_width}" "${source_state}")"
+
+  case "${source_state}" in
+    curated)
+      print -P -- "%F{81}${padded_state}%f"
+      ;;
+    curated+local)
+      print -P -- "%F{221}${padded_state}%f"
+      ;;
+    local)
+      print -P -- "%F{221}${padded_state}%f"
+      ;;
+    *)
+      print -r -- "${padded_state}"
+      ;;
+  esac
+}
+
+#
+# Colorize one module install-state label.
+# Arguments:
+#   $1 - Install-state label such as available, installed, or missing.
+# Returns:
+#   0 after printing the styled label.
+csm-format-module-install-state() {
+  local install_state="$1"
+  local target_width="$2"
+  local padded_state
+
+  padded_state="$(printf '%*s' "${target_width}" "${install_state}")"
+
+  case "${install_state}" in
+    installed)
+      print -P -- "%F{114}${padded_state}%f"
+      ;;
+    available)
+      print -P -- "%F{117}${padded_state}%f"
+      ;;
+    missing)
+      print -P -- "%F{203}${padded_state}%f"
+      ;;
+    *)
+      print -r -- "${padded_state}"
+      ;;
+  esac
+}
+
+#
+# Colorize one module enablement-state label.
+# Arguments:
+#   $1 - Enablement-state label such as enabled or disabled.
+# Returns:
+#   0 after printing the styled label.
+csm-format-module-enabled-state() {
+  local enabled_state="$1"
+  local target_width="$2"
+  local padded_state
+
+  padded_state="$(printf '%*s' "${target_width}" "${enabled_state}")"
+
+  case "${enabled_state}" in
+    enabled)
+      print -P -- "%F{114}${padded_state}%f"
+      ;;
+    disabled)
+      print -P -- "%F{244}${padded_state}%f"
+      ;;
+    *)
+      print -r -- "${padded_state}"
+      ;;
+  esac
 }
 
 #
@@ -101,6 +253,166 @@ available_profiles() {
 
   profiles=(${SHELL_CONFIG_ROOT}/zsh-*(N-/))
   print -r -l -- ${profiles:t}
+}
+
+#
+# Resolve the default interactive preference for csm.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing 1 for interactive or 0 for non-interactive.
+# Side effects:
+#   Reads CSM_INTERACTIVE from the current environment.
+csm-default-interactive() {
+  case "${CSM_INTERACTIVE:-0:l}" in
+    1|true|yes|on)
+      print -r -- 1
+      ;;
+    *)
+      print -r -- 0
+      ;;
+  esac
+}
+
+#
+# Resolve the final interactive mode for a command.
+# Arguments:
+#   $1 - Explicit interactive flag count.
+#   $2 - Explicit no-interactive flag count.
+#   $3 - Default mode when no env or explicit flags are present.
+# Returns:
+#   0 after printing 1 for interactive or 0 for non-interactive.
+# Side effects:
+#   Reads CSM_INTERACTIVE from the current environment.
+csm-resolve-interactive-mode() {
+  local interactive_flag_count="$1"
+  local no_interactive_flag_count="$2"
+  local fallback_mode="$3"
+  local env_default
+
+  if (( interactive_flag_count > 0 && no_interactive_flag_count > 0 )); then
+    print -u2 -- 'csm: choose either -i/--interactive or --no-interactive, not both'
+    return 1
+  fi
+
+  if (( interactive_flag_count > 0 )); then
+    print -r -- 1
+    return 0
+  fi
+
+  if (( no_interactive_flag_count > 0 )); then
+    print -r -- 0
+    return 0
+  fi
+
+  env_default="$(csm-default-interactive)"
+  if [[ -n "${CSM_INTERACTIVE:-}" ]]; then
+    print -r -- "${env_default}"
+  else
+    print -r -- "${fallback_mode}"
+  fi
+}
+
+#
+# Select one value from a list, preferring fzf and falling back to a native zsh menu.
+# Arguments:
+#   $1 - Prompt label for the chooser.
+#   $@ - Candidate values.
+# Returns:
+#   0 after printing the selected value, non-zero on cancel or empty input.
+# Side effects:
+#   May invoke fzf or the native zsh select prompt in an interactive terminal.
+csm-select-from-list() {
+  local prompt_label="$1"
+  shift
+  local selected_value list_value
+  local -a candidates
+
+  candidates=("$@")
+  (( ${#candidates[@]} > 0 )) || return 1
+
+  if [[ ! -t 0 ]]; then
+    print -u2 -- "csm: interactive selection for ${prompt_label} requires a terminal"
+    return 1
+  fi
+
+  if (( $+commands[fzf] )); then
+    selected_value="$(
+      printf '%s\n' "${candidates[@]}" | fzf \
+        --ansi \
+        --border \
+        --height=55% \
+        --layout=reverse \
+        --prompt="${prompt_label}> " \
+        --header="󰈔 csm interactive selector"
+    )" || return 1
+    [[ -n "${selected_value}" ]] || return 1
+    print -r -- "${selected_value}"
+    return 0
+  fi
+
+  print -P -- "%F{221}fzf not found; using zsh select menu.%f"
+  select list_value in "${candidates[@]}"; do
+    if [[ -n "${list_value}" ]]; then
+      print -r -- "${list_value}"
+      return 0
+    fi
+    print -u2 -- 'Invalid selection.'
+  done
+
+  return 1
+}
+
+#
+# Resolve one module name from positional args or interactive selection.
+# Arguments:
+#   $1 - Interactive mode flag, 1 or 0.
+#   $2 - Profile directory name.
+#   $3 - Selection source: curated or any.
+#   $@ - Optional positional module and profile values after the first three args.
+# Returns:
+#   0 after printing the selected module name, non-zero on usage error or cancel.
+# Side effects:
+#   May invoke interactive selection when requested.
+csm-resolve-module-name() {
+  local interactive_mode="$1"
+  local profile_name="$2"
+  local source_mode="$3"
+  shift 3
+  local module_name="${1:-}"
+  local -a module_names
+
+  if [[ -n "${module_name}" ]]; then
+    print -r -- "${module_name}"
+    return 0
+  fi
+
+  if (( ! interactive_mode )); then
+    print -u2 -- 'csm: module name is required unless interactive mode is enabled'
+    return 1
+  fi
+
+  case "${source_mode}" in
+    curated)
+      module_names=(${(f)"$(curated_module_names "${profile_name}")"})
+      ;;
+    any)
+      module_names=(${(f)"$(curated_module_names "${profile_name}")"})
+      module_names+=(${(f)"$(local_module_names "${profile_name}")"})
+      module_names=(${(u)module_names})
+      ;;
+    *)
+      print -u2 -- "csm: unknown module source mode: ${source_mode}"
+      return 1
+      ;;
+  esac
+
+  (( ${#module_names[@]} > 0 )) || {
+    print -u2 -- "csm: no modules available for interactive selection in ${profile_name}"
+    return 1
+  }
+
+  csm-select-from-list 'module' "${module_names[@]}"
 }
 
 #
@@ -225,6 +537,534 @@ profile_settings_file() {
 
   load_profile_contract "${1}" || return 1
   print -r -- "${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config.local/${SHELL_PROFILE_NAME}/settings.zsh"
+}
+
+#
+# Print the user-owned XDG config directory for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_user_config_dir() {
+  local SHELL_PROFILE_NAME SHELL_PROFILE_DESCRIPTION SHELL_PROFILE_HISTORY_MODE
+
+  load_profile_contract "${1}" || return 1
+  print -r -- "${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config.local/${SHELL_PROFILE_NAME}"
+}
+
+#
+# Print the user-owned env file path for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+profile_env_file() {
+  local user_config_dir
+
+  user_config_dir="$(profile_user_config_dir "${1}")" || return 1
+  print -r -- "${user_config_dir}/env.zsh"
+}
+
+#
+# Print the repository-managed curated module root for a profile.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 after writing the curated module root path.
+profile_curated_modules_dir() {
+  local profile_name="${1}"
+
+  is_known_profile "${profile_name}" || return 1
+  print -r -- "${SHELL_CONFIG_ROOT}/${profile_name}/curated-modules"
+}
+
+#
+# Print curated module names for a profile, one per line.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 after writing names, non-zero if the profile is unknown.
+curated_module_names() {
+  local profile_name="${1}"
+  local module_root
+  local -a module_dirs
+
+  module_root="$(profile_curated_modules_dir "${profile_name}")" || return 1
+  module_dirs=(${module_root}/*(N-/))
+  print -r -l -- ${module_dirs:t}
+}
+
+#
+# Print user-local module names for a profile, one per line.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 after writing names, non-zero if the profile is unknown.
+local_module_names() {
+  local profile_name="${1}"
+  local user_config_dir
+  local -a module_files
+
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+  module_files=(${user_config_dir}/modules/*.zsh(N-.))
+  print -r -l -- ${${module_files:t}%.zsh}
+}
+
+#
+# Print the repository-managed module source file for one curated module.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 after writing the module source path, non-zero when missing.
+curated_module_source_file() {
+  local profile_name="${1}"
+  local module_name="${2}"
+  local module_root
+  local module_source
+
+  module_root="$(profile_curated_modules_dir "${profile_name}")" || return 1
+  module_source="${module_root}/${module_name}/module.zsh"
+  [[ -r "${module_source}" ]] || return 1
+  print -r -- "${module_source}"
+}
+
+#
+# Print the repository-managed functions directory for one curated module when present.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 after writing the functions directory path when present, non-zero otherwise.
+curated_module_functions_dir() {
+  local profile_name="${1}"
+  local module_name="${2}"
+  local module_root
+  local functions_dir
+
+  module_root="$(profile_curated_modules_dir "${profile_name}")" || return 1
+  functions_dir="${module_root}/${module_name}/functions"
+  [[ -d "${functions_dir}" ]] || return 1
+  print -r -- "${functions_dir}"
+}
+
+#
+# Print a short summary line parsed from one module file.
+# Arguments:
+#   $1 - Module source file path.
+# Returns:
+#   0 after writing a summary when found, non-zero otherwise.
+module_summary_from_file() {
+  local module_file="${1}"
+  local current_line
+  local stripped_line
+
+  [[ -r "${module_file}" ]] || return 1
+
+  while IFS= read -r current_line || [[ -n "${current_line}" ]]; do
+    [[ "${current_line}" == '#'* ]] || continue
+    stripped_line="${current_line#\#}"
+    stripped_line="${stripped_line## }"
+    [[ -n "${stripped_line}" ]] || continue
+    case "${stripped_line}" in
+      Curated\ *|Local\ *)
+        continue
+        ;;
+    esac
+    print -r -- "${stripped_line}"
+    return 0
+  done < "${module_file}"
+
+  return 1
+}
+
+#
+# Extract one metadata field from a module source file comment header.
+# Arguments:
+#   $1 - Module source file path.
+#   $2 - Metadata field name, for example tags or requires.
+# Returns:
+#   0 after printing the metadata value when present, non-zero otherwise.
+# Side effects:
+#   Reads the module source file.
+module_metadata_from_file() {
+  local source_file="${1}"
+  local field_name="${2}"
+  local current_line field_prefix field_value
+
+  [[ -r "${source_file}" ]] || return 1
+  [[ -n "${field_name}" ]] || return 1
+
+  field_prefix="# ${field_name}:"
+  while IFS= read -r current_line; do
+    if [[ "${current_line}" == ${field_prefix}* ]]; then
+      field_value="${current_line#${field_prefix}}"
+      field_value="${field_value##[[:space:]]#}"
+      print -r -- "${field_value}"
+      return 0
+    fi
+
+    [[ "${current_line}" == '# '* ]] || break
+  done < "${source_file}"
+
+  return 1
+}
+
+#
+# Print a short human-readable module summary for one profile and module.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 after writing a summary, non-zero if no summary could be found.
+module_summary() {
+  local profile_name="${1}"
+  local module_name="${2}"
+  local curated_source
+  local local_source
+
+  if curated_source="$(curated_module_source_file "${profile_name}" "${module_name}" 2>/dev/null)"; then
+    module_summary_from_file "${curated_source}" && return 0
+  fi
+
+  if local_source="$(user_module_file "${profile_name}" "${module_name}" 2>/dev/null)"; then
+    module_summary_from_file "${local_source}" && return 0
+  fi
+
+  return 1
+}
+
+#
+# Resolve one metadata field for a module from curated or local module files.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+#   $3 - Metadata field name, for example tags or requires.
+# Returns:
+#   0 after printing the metadata value when present, non-zero otherwise.
+# Side effects:
+#   Reads the matching module source files when present.
+module_metadata() {
+  local profile_name="${1}"
+  local module_name="${2}"
+  local field_name="${3}"
+  local curated_source local_source
+
+  if curated_source="$(curated_module_source_file "${profile_name}" "${module_name}" 2>/dev/null)"; then
+    module_metadata_from_file "${curated_source}" "${field_name}" && return 0
+  fi
+
+  if local_source="$(user_module_file "${profile_name}" "${module_name}" 2>/dev/null)"; then
+    module_metadata_from_file "${local_source}" "${field_name}" && return 0
+  fi
+
+  return 1
+}
+
+#
+# Print the user-local module file path for one profile and module name.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+user_module_file() {
+  local profile_name="${1}"
+  local module_name="${2}"
+  local user_config_dir
+
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+  print -r -- "${user_config_dir}/modules/${module_name}.zsh"
+}
+
+#
+# Return whether one module is installed in the user's local profile config.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 when the local module file exists, non-zero otherwise.
+module_is_installed() {
+  local module_file
+
+  module_file="$(user_module_file "${1}" "${2}")" || return 1
+  [[ -r "${module_file}" ]]
+}
+
+#
+# Return whether one module name is available as a repo-curated module.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 when the curated module exists, non-zero otherwise.
+module_has_curated_source() {
+  curated_module_source_file "${1}" "${2}" >/dev/null 2>&1
+}
+
+#
+# Print the module source that startup will actually load when enabled.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 after printing the active source label.
+module_active_source() {
+  local profile_name="${1}"
+  local module_name="${2}"
+
+  if module_is_installed "${profile_name}" "${module_name}"; then
+    if module_has_curated_source "${profile_name}" "${module_name}"; then
+      print -r -- 'local-fork'
+    else
+      print -r -- 'local-only'
+    fi
+    return 0
+  fi
+
+  if module_has_curated_source "${profile_name}" "${module_name}"; then
+    print -r -- 'curated'
+    return 0
+  fi
+
+  print -r -- 'missing'
+}
+
+#
+# Print candidate local function paths associated with one module.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 after printing existing function paths, one per line.
+module_local_function_files() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local module_name="${2}"
+  local user_config_dir functions_source function_path
+  local -a function_candidates function_files
+
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+  function_candidates=(${user_config_dir}/functions/${module_name}-*(N-.))
+
+  if functions_source="$(curated_module_functions_dir "${profile_name}" "${module_name}" 2>/dev/null)"; then
+    for function_path in ${functions_source}/*(N-.); do
+      function_candidates+=("${user_config_dir}/functions/${function_path:t}")
+    done
+  fi
+
+  function_files=(${(u)function_candidates})
+  function_files=(${^function_files}(N-.))
+  print -r -l -- "${function_files[@]}"
+}
+
+#
+# Return whether one module is enabled in the user's env.zsh file.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 when the module name appears in SHELL_FORTRESS_LOCAL_MODULES, non-zero otherwise.
+module_is_enabled() {
+  local profile_name="${1}"
+  local module_name="${2}"
+  local env_file current_line current_value
+  local -a parsed_words existing_modules
+
+  env_file="$(profile_env_file "${profile_name}")" || return 1
+  [[ -r "${env_file}" ]] || return 1
+
+  while IFS= read -r current_line || [[ -n "${current_line}" ]]; do
+    [[ "${current_line}" == SHELL_FORTRESS_LOCAL_MODULES=* ]] || continue
+    current_value="${current_line#SHELL_FORTRESS_LOCAL_MODULES=}"
+    parsed_words=(${(z)current_value})
+    existing_modules=(${parsed_words:#\(})
+    existing_modules=(${existing_modules:#\)})
+    (( ${existing_modules[(Ie)${module_name}]} )) && return 0
+  done < "${env_file}"
+
+  return 1
+}
+
+#
+# Ensure a profile env file exists with a small explanatory header.
+# Arguments:
+#   $1 - Profile directory name.
+# Returns:
+#   0 on success, non-zero if the profile is unknown.
+# Side effects:
+#   Creates the env file and its parent directories when missing.
+init_env_file() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local env_file
+
+  env_file="$(profile_env_file "${profile_name}")" || return 1
+  mkdir -p -- "${env_file:h}"
+
+  if [[ -e "${env_file}" ]]; then
+    return 0
+  fi
+
+  cat > "${env_file}" <<EOF
+# Fortress local environment overrides for ${profile_name}.
+# Add exports, local module selections, and other user-owned startup values here.
+EOF
+}
+
+#
+# Ensure one module name appears in SHELL_FORTRESS_LOCAL_MODULES within env.zsh.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 on success, non-zero on write failure.
+# Side effects:
+#   Rewrites the user env file to keep the module list current.
+enable_local_module_in_env_file() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local module_name="${2}"
+  local env_file temp_file current_line current_value
+  local found_assignment=0
+  local -a existing_modules updated_modules parsed_words
+
+  env_file="$(profile_env_file "${profile_name}")" || return 1
+  init_env_file "${profile_name}" || return 1
+  temp_file="${env_file}.tmp.$$"
+
+  while IFS= read -r current_line || [[ -n "${current_line}" ]]; do
+    if [[ "${current_line}" == SHELL_FORTRESS_LOCAL_MODULES=* ]]; then
+      found_assignment=1
+      current_value="${current_line#SHELL_FORTRESS_LOCAL_MODULES=}"
+      parsed_words=(${(z)current_value})
+      existing_modules=(${parsed_words:#\(})
+      existing_modules=(${existing_modules:#\)})
+      updated_modules=(${existing_modules} "${module_name}")
+      updated_modules=(${(u)updated_modules})
+      print -r -- "SHELL_FORTRESS_LOCAL_MODULES=(${(j: :)updated_modules})" >> "${temp_file}"
+    else
+      print -r -- "${current_line}" >> "${temp_file}"
+    fi
+  done < "${env_file}"
+
+  if (( ! found_assignment )); then
+    print -r -- '' >> "${temp_file}"
+    print -r -- "SHELL_FORTRESS_LOCAL_MODULES=(${module_name})" >> "${temp_file}"
+  fi
+
+  mv -- "${temp_file}" "${env_file}"
+}
+
+#
+# Ensure one module name is removed from SHELL_FORTRESS_LOCAL_MODULES within env.zsh.
+# Arguments:
+#   $1 - Profile directory name.
+#   $2 - Module name.
+# Returns:
+#   0 on success, non-zero on write failure.
+# Side effects:
+#   Rewrites the user env file to keep the module list current.
+disable_local_module_in_env_file() {
+  emulate -L zsh
+
+  local profile_name="${1}"
+  local module_name="${2}"
+  local env_file temp_file current_line current_value
+  local found_assignment=0
+  local -a existing_modules updated_modules parsed_words
+
+  env_file="$(profile_env_file "${profile_name}")" || return 1
+  init_env_file "${profile_name}" || return 1
+  temp_file="${env_file}.tmp.$$"
+
+  while IFS= read -r current_line || [[ -n "${current_line}" ]]; do
+    if [[ "${current_line}" == SHELL_FORTRESS_LOCAL_MODULES=* ]]; then
+      found_assignment=1
+      current_value="${current_line#SHELL_FORTRESS_LOCAL_MODULES=}"
+      parsed_words=(${(z)current_value})
+      existing_modules=(${parsed_words:#\(})
+      existing_modules=(${existing_modules:#\)})
+      updated_modules=(${existing_modules:#${module_name}})
+      if (( ${#updated_modules[@]} )); then
+        print -r -- "SHELL_FORTRESS_LOCAL_MODULES=(${(j: :)updated_modules})" >> "${temp_file}"
+      fi
+    else
+      print -r -- "${current_line}" >> "${temp_file}"
+    fi
+  done < "${env_file}"
+
+  if (( ! found_assignment )); then
+    cp -- "${env_file}" "${temp_file}"
+  fi
+
+  mv -- "${temp_file}" "${env_file}"
+}
+
+#
+# Ask the user to confirm one destructive local-module action.
+# Arguments:
+#   $1 - Human-readable prompt text.
+# Returns:
+#   0 when the user confirms, non-zero otherwise.
+# Side effects:
+#   Reads one line from the terminal when interactive.
+confirm_destructive_action() {
+  local prompt_text="${1}"
+  local response
+
+  if [[ ! -t 0 ]]; then
+    print -u2 -- "confirmation required: ${prompt_text}"
+    print -u2 -- 'confirmation required: rerun in an interactive terminal'
+    return 1
+  fi
+
+  print -n -- "${prompt_text} [y/N]: "
+  read -r response
+
+  case "${response:l}" in
+    y|yes)
+      return 0
+      ;;
+    *)
+      print -- 'operation cancelled'
+      return 1
+      ;;
+  esac
+}
+
+#
+# Remove one filesystem path when it exists.
+# Arguments:
+#   $1 - Path to remove.
+#   $2 - Human-readable label for logs.
+# Returns:
+#   0 when the path was removed or was already absent, non-zero on removal failure.
+# Side effects:
+#   Deletes local files or directories.
+remove_reset_path() {
+  local target_path="${1}"
+  local label="${2}"
+
+  [[ -n "${target_path}" ]] || return 0
+  [[ -e "${target_path}" || -L "${target_path}" ]] || return 0
+
+  if [[ -d "${target_path}" && ! -L "${target_path}" ]]; then
+    rm -rf -- "${target_path}" || {
+      print -u2 -- "reset-profile: failed to remove ${label} -> ${target_path}"
+      return 1
+    }
+  else
+    rm -f -- "${target_path}" || {
+      print -u2 -- "reset-profile: failed to remove ${label} -> ${target_path}"
+      return 1
+    }
+  fi
+
+  print -- "reset-profile: removed ${label} -> ${target_path}"
 }
 
 #
@@ -381,6 +1221,640 @@ edit_settings() {
   print -- "edit-settings: opening ${settings_file}"
   editor_argv=(${(z)editor_command})
   "${editor_argv[@]}" "${settings_file}"
+}
+
+#
+# List curated and local module state for one profile.
+# Arguments:
+#   $1 - Optional profile directory name. Defaults to the current profile when detectable.
+# Returns:
+#   0 on success, non-zero on invalid usage.
+# Side effects:
+#   Writes module status lines to stdout.
+list_modules() {
+  emulate -L zsh
+
+  local profile_name module_name source_state active_state installed_state enabled_state row_text
+  local header_source='source'
+  local header_active='active'
+  local header_install='install'
+  local header_enabled='enabled'
+  local header_module='module'
+  local header_summary='summary'
+  local header_tags='tags'
+  local source_display active_display install_display enabled_display summary_text tags_text
+  local max_source_width=${#header_source}
+  local max_active_width=${#header_active}
+  local max_install_width=${#header_install}
+  local max_enabled_width=${#header_enabled}
+  local max_tags_width=${#header_tags}
+  local max_summary_width=${#header_summary}
+  local -a curated_names local_names module_names rows
+
+  if (( $# > 1 )); then
+    print -u2 -- "error: unexpected arguments for list-modules: $*"
+    print -u2 -- 'usage: csm list-modules [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${1:-}")" || return 1
+  curated_names=(${(f)"$(curated_module_names "${profile_name}")"})
+  local_names=(${(f)"$(local_module_names "${profile_name}")"})
+  module_names=(${curated_names} ${local_names})
+  module_names=(${(u)module_names})
+
+  if (( ${#module_names[@]} == 0 )); then
+    print -- "list-modules: no modules found for ${profile_name}"
+    return 0
+  fi
+
+  for module_name in "${module_names[@]}"; do
+    if (( ${curated_names[(Ie)${module_name}]} )) && (( ${local_names[(Ie)${module_name}]} )); then
+      source_state='curated+local'
+    elif (( ${curated_names[(Ie)${module_name}]} )); then
+      source_state='curated'
+    else
+      source_state='local'
+    fi
+    active_state="$(module_active_source "${profile_name}" "${module_name}")"
+    installed_state='available'
+    enabled_state='disabled'
+    if module_is_installed "${profile_name}" "${module_name}"; then
+      installed_state='installed'
+    elif [[ "${source_state}" == 'local' ]]; then
+      installed_state='missing'
+    fi
+    if module_is_enabled "${profile_name}" "${module_name}"; then
+      enabled_state='enabled'
+    fi
+    summary_text="$(module_summary "${profile_name}" "${module_name}" 2>/dev/null || true)"
+    [[ -n "${summary_text}" ]] || summary_text='user-local module'
+    if [[ "${active_state}" == 'local-fork' ]]; then
+      summary_text="${summary_text} [shadowing curated]"
+    fi
+    tags_text="$(module_metadata "${profile_name}" "${module_name}" tags 2>/dev/null || true)"
+    [[ -n "${tags_text}" ]] || tags_text='-'
+    (( ${#source_state} > max_source_width )) && max_source_width=${#source_state}
+    (( ${#active_state} > max_active_width )) && max_active_width=${#active_state}
+    (( ${#installed_state} > max_install_width )) && max_install_width=${#installed_state}
+    (( ${#enabled_state} > max_enabled_width )) && max_enabled_width=${#enabled_state}
+    (( ${#tags_text} > max_tags_width )) && max_tags_width=${#tags_text}
+    (( ${#summary_text} > max_summary_width )) && max_summary_width=${#summary_text}
+    rows+=("${source_state}|${active_state}|${installed_state}|${enabled_state}|${module_name}|${tags_text}|${summary_text}")
+  done
+
+  csm-print-section-header '󰈔 Modules' "${profile_name}"
+  print -P -- "%F{244}${(r:${max_source_width}:)header_source} ${(r:${max_active_width}:)header_active} ${(r:${max_install_width}:)header_install} ${(r:${max_enabled_width}:)header_enabled} ${(r:18:)header_module} ${(r:${max_tags_width}:)header_tags} ${header_summary}%f"
+  for row_text in "${rows[@]}"; do
+    source_state="${row_text%%|*}"
+    row_text="${row_text#*|}"
+    active_state="${row_text%%|*}"
+    row_text="${row_text#*|}"
+    installed_state="${row_text%%|*}"
+    row_text="${row_text#*|}"
+    enabled_state="${row_text%%|*}"
+    row_text="${row_text#*|}"
+    module_name="${row_text%%|*}"
+    row_text="${row_text#*|}"
+    tags_text="${row_text%%|*}"
+    row_text="${row_text#*|}"
+    summary_text="${row_text#*|}"
+    source_display="$(csm-format-module-source "${source_state}" "${max_source_width}")"
+    active_display="$(printf '%*s' "${max_active_width}" "${active_state}")"
+    install_display="$(csm-format-module-install-state "${installed_state}" "${max_install_width}")"
+    enabled_display="$(csm-format-module-enabled-state "${enabled_state}" "${max_enabled_width}")"
+    print -P -- "${source_display} ${active_display} ${install_display} ${enabled_display} ${(r:18:)module_name} ${(r:${max_tags_width}:)tags_text} ${summary_text}"
+  done
+}
+
+#
+# Print one module summary and current state for a profile.
+# Arguments:
+#   $1 - Module name.
+#   $2 - Optional profile directory name. Defaults to the current profile when detectable.
+# Returns:
+#   0 on success, non-zero on invalid usage or unknown module.
+# Side effects:
+#   Writes a formatted module summary to stdout.
+describe_module() {
+  emulate -L zsh
+
+  local profile_name module_name source_state active_state installed_state enabled_state summary_text tags_text requires_text environments_text function_file
+  local module_file functions_dir
+  local -a positional_args available_modules function_files
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      --*)
+        print -u2 -- "error: unknown option for describe-module: ${1}"
+        print -u2 -- 'usage: csm describe-module <module> [profile]'
+        return 1
+        ;;
+      *)
+        positional_args+=("${1}")
+        ;;
+    esac
+    shift
+  done
+
+  if (( ${#positional_args[@]} < 1 || ${#positional_args[@]} > 2 )); then
+    print -u2 -- 'usage: csm describe-module <module> [profile]'
+    return 1
+  fi
+
+  module_name="${positional_args[1]}"
+  profile_name="$(resolve_settings_profile "${positional_args[2]:-}")" || return 1
+
+  available_modules=(${(f)"$(curated_module_names "${profile_name}")"} ${(f)"$(local_module_names "${profile_name}")"})
+  available_modules=(${(u)available_modules})
+  if (( ! ${available_modules[(Ie)${module_name}]} )); then
+    print -u2 -- "describe-module: unknown module '${module_name}' for ${profile_name}"
+    print -u2 -- "describe-module: available modules: ${(j:, :)available_modules}"
+    return 1
+  fi
+
+  if module_has_curated_source "${profile_name}" "${module_name}" && module_is_installed "${profile_name}" "${module_name}"; then
+    source_state='curated+local'
+  elif module_has_curated_source "${profile_name}" "${module_name}"; then
+    source_state='curated'
+  else
+    source_state='local'
+  fi
+
+  installed_state='available'
+  if module_is_installed "${profile_name}" "${module_name}"; then
+    installed_state='installed'
+  elif [[ "${source_state}" == 'local' ]]; then
+    installed_state='missing'
+  fi
+
+  enabled_state='disabled'
+  if module_is_enabled "${profile_name}" "${module_name}"; then
+    enabled_state='enabled'
+  fi
+  active_state="$(module_active_source "${profile_name}" "${module_name}")"
+
+  summary_text="$(module_summary "${profile_name}" "${module_name}" 2>/dev/null || true)"
+  [[ -n "${summary_text}" ]] || summary_text='user-local module'
+  tags_text="$(module_metadata "${profile_name}" "${module_name}" tags 2>/dev/null || true)"
+  requires_text="$(module_metadata "${profile_name}" "${module_name}" requires 2>/dev/null || true)"
+  environments_text="$(module_metadata "${profile_name}" "${module_name}" environments 2>/dev/null || true)"
+
+  csm-print-section-header '󰈔 Module' "${module_name}"
+  print -P -- "%F{110}profile:%f   ${profile_name}"
+  print -P -- "%F{110}source:%f    ${source_state}"
+  print -P -- "%F{110}active:%f    ${active_state}"
+  print -P -- "%F{110}install:%f   ${installed_state}"
+  print -P -- "%F{110}enabled:%f   ${enabled_state}"
+  print -P -- "%F{110}summary:%f   ${summary_text}"
+  if [[ -n "${tags_text}" ]]; then
+    print -P -- "%F{110}tags:%f      ${tags_text}"
+  fi
+  if [[ -n "${environments_text}" ]]; then
+    print -P -- "%F{110}envs:%f      ${environments_text}"
+  fi
+  if [[ -n "${requires_text}" ]]; then
+    print -P -- "%F{110}requires:%f  ${requires_text}"
+  fi
+
+  module_file="$(user_module_file "${profile_name}" "${module_name}" 2>/dev/null || true)"
+  if [[ -n "${module_file}" && -e "${module_file}" ]]; then
+    print -P -- "%F{110}local:%f     ${module_file}"
+  fi
+
+  if [[ "${active_state}" == 'local-fork' ]]; then
+    print -P -- "%F{110}shadowing:%f curated"
+  fi
+
+  if functions_dir="$(curated_module_functions_dir "${profile_name}" "${module_name}" 2>/dev/null)"; then
+    function_files=(${functions_dir}/*(N-.))
+    if (( ${#function_files[@]} )); then
+      print -P -- "%F{110}functions:%f"
+      for function_file in "${function_files[@]}"; do
+        print -r -- "  ${function_file:t}"
+      done
+    fi
+  fi
+}
+
+#
+# Install one curated optional module into the user's local profile config tree.
+# Arguments:
+#   $1 - Module name.
+#   $2 - Optional profile directory name. Defaults to the current profile when detectable.
+#   --force - Replace existing user-local files for the module.
+#   --enable - Also ensure the module is enabled in env.zsh after installation.
+#   --no-enable - Create the local fork without changing enablement.
+# Returns:
+#   0 on success, non-zero on invalid usage or missing curated module files.
+# Side effects:
+#   Copies repo-owned module files into the user's XDG local fortress config tree.
+install_module() {
+  emulate -L zsh
+
+  local force_overwrite=0
+  local enable_after_install=1
+  local interactive_mode profile_name module_name module_source user_config_dir module_dest functions_dest functions_source function_path function_dest
+  local -a positional_args function_files available_modules opt_interactive opt_no_interactive
+
+  zparseopts -D -E i=opt_interactive -interactive=opt_interactive -no-interactive=opt_no_interactive || return 1
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      --force)
+        force_overwrite=1
+        ;;
+      --enable)
+        enable_after_install=1
+        ;;
+      --no-enable)
+        enable_after_install=0
+        ;;
+      --*)
+        print -u2 -- "error: unknown option for install-module: ${1}"
+        print -u2 -- 'usage: csm install-module [--force] [--enable|--no-enable] [-i|--interactive|--no-interactive] <module> [profile]'
+        return 1
+        ;;
+      *)
+        positional_args+=("${1}")
+        ;;
+    esac
+    shift
+  done
+
+  if (( ${#positional_args[@]} > 2 )); then
+    print -u2 -- 'usage: csm install-module [--force] [--enable|--no-enable] [-i|--interactive|--no-interactive] <module> [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${positional_args[2]:-}")" || return 1
+  interactive_mode="$(csm-resolve-interactive-mode ${#opt_interactive[@]} ${#opt_no_interactive[@]} 0)" || return 1
+  module_name="$(csm-resolve-module-name "${interactive_mode}" "${profile_name}" curated "${positional_args[1]:-}")" || return 1
+
+  if ! module_source="$(curated_module_source_file "${profile_name}" "${module_name}")"; then
+    available_modules=(${(f)"$(curated_module_names "${profile_name}")"})
+    print -u2 -- "install-module: unknown curated module '${module_name}' for ${profile_name}"
+    if (( ${#available_modules[@]} )); then
+      print -u2 -- "install-module: available modules: ${(j:, :)available_modules}"
+    fi
+    return 1
+  fi
+
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+  module_dest="${user_config_dir}/modules/${module_name}.zsh"
+  functions_dest="${user_config_dir}/functions"
+
+  mkdir -p -- "${module_dest:h}" "${functions_dest}"
+
+  if [[ -e "${module_dest}" ]] && (( ! force_overwrite )); then
+    print -- "install-module: module already exists: ${module_dest}"
+  else
+    cp -- "${module_source}" "${module_dest}"
+    print -- "install-module: installed module -> ${module_dest}"
+  fi
+
+  if functions_source="$(curated_module_functions_dir "${profile_name}" "${module_name}" 2>/dev/null)"; then
+    function_files=(${functions_source}/*(N-.))
+    for function_path in "${function_files[@]}"; do
+      function_dest="${functions_dest}/${function_path:t}"
+      if [[ -e "${function_dest}" ]] && (( ! force_overwrite )); then
+        print -- "install-module: function already exists: ${function_dest}"
+        continue
+      fi
+      cp -- "${function_path}" "${function_dest}"
+      print -- "install-module: installed function -> ${function_dest}"
+    done
+  fi
+
+  if (( enable_after_install )); then
+    enable_local_module_in_env_file "${profile_name}" "${module_name}" || return 1
+    print -- "install-module: enabled '${module_name}' in ${user_config_dir}/env.zsh"
+  else
+    print -- "install-module: local fork created; enable '${module_name}' in ${user_config_dir}/env.zsh when you want to use it"
+  fi
+}
+
+#
+# Ensure one module name is enabled in the user's env.zsh file.
+# Arguments:
+#   $1 - Module name.
+#   $2 - Optional profile directory name. Defaults to the current profile when detectable.
+# Returns:
+#   0 on success, non-zero on invalid usage.
+# Side effects:
+#   Creates or rewrites the user env file in the XDG local config tree.
+enable_module() {
+  emulate -L zsh
+
+  local interactive_mode profile_name module_name user_config_dir
+  local -a positional_args opt_interactive opt_no_interactive
+
+  zparseopts -D -E i=opt_interactive -interactive=opt_interactive -no-interactive=opt_no_interactive || return 1
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      --*)
+        print -u2 -- "error: unknown option for enable-module: ${1}"
+        print -u2 -- 'usage: csm enable-module [-i|--interactive|--no-interactive] <module> [profile]'
+        return 1
+        ;;
+      *)
+        positional_args+=("${1}")
+        ;;
+    esac
+    shift
+  done
+
+  if (( ${#positional_args[@]} > 2 )); then
+    print -u2 -- 'usage: csm enable-module [-i|--interactive|--no-interactive] <module> [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${positional_args[2]:-}")" || return 1
+  interactive_mode="$(csm-resolve-interactive-mode ${#opt_interactive[@]} ${#opt_no_interactive[@]} 0)" || return 1
+  module_name="$(csm-resolve-module-name "${interactive_mode}" "${profile_name}" any "${positional_args[1]:-}")" || return 1
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+
+  if ! module_has_curated_source "${profile_name}" "${module_name}" && ! module_is_installed "${profile_name}" "${module_name}"; then
+    print -u2 -- "enable-module: unknown module '${module_name}' for ${profile_name}"
+    return 1
+  fi
+
+  enable_local_module_in_env_file "${profile_name}" "${module_name}" || return 1
+  print -- "enable-module: ensured '${module_name}' is enabled in ${user_config_dir}/env.zsh"
+}
+
+#
+# Ensure one local module name is removed from the user's env.zsh file.
+# Arguments:
+#   $1 - Module name.
+#   $2 - Optional profile directory name. Defaults to the current profile when detectable.
+# Returns:
+#   0 on success, non-zero on invalid usage.
+# Side effects:
+#   Rewrites the user env file in the XDG local config tree.
+disable_module() {
+  emulate -L zsh
+
+  local interactive_mode profile_name module_name user_config_dir
+  local -a positional_args opt_interactive opt_no_interactive
+
+  zparseopts -D -E i=opt_interactive -interactive=opt_interactive -no-interactive=opt_no_interactive || return 1
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      --*)
+        print -u2 -- "error: unknown option for disable-module: ${1}"
+        print -u2 -- 'usage: csm disable-module [-i|--interactive|--no-interactive] <module> [profile]'
+        return 1
+        ;;
+      *)
+        positional_args+=("${1}")
+        ;;
+    esac
+    shift
+  done
+
+  if (( ${#positional_args[@]} > 2 )); then
+    print -u2 -- 'usage: csm disable-module [-i|--interactive|--no-interactive] <module> [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${positional_args[2]:-}")" || return 1
+  interactive_mode="$(csm-resolve-interactive-mode ${#opt_interactive[@]} ${#opt_no_interactive[@]} 0)" || return 1
+  module_name="$(csm-resolve-module-name "${interactive_mode}" "${profile_name}" any "${positional_args[1]:-}")" || return 1
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+
+  disable_local_module_in_env_file "${profile_name}" "${module_name}" || return 1
+  print -- "disable-module: ensured '${module_name}' is disabled in ${user_config_dir}/env.zsh"
+}
+
+#
+# Remove one local module file and its matching local functions after confirmation.
+# Arguments:
+#   $1 - Module name.
+#   $2 - Optional profile directory name. Defaults to the current profile when detectable.
+#   --force - Skip the interactive confirmation prompt.
+# Returns:
+#   0 on success, non-zero on invalid usage or cancelled confirmation.
+# Side effects:
+#   Removes user-local module and function files and disables the module in env.zsh.
+remove_module() {
+  emulate -L zsh
+
+  local force_remove=0
+  local interactive_mode profile_name module_name user_config_dir module_file function_file
+  local -a positional_args function_candidates opt_interactive opt_no_interactive
+
+  zparseopts -D -E i=opt_interactive -interactive=opt_interactive -no-interactive=opt_no_interactive || return 1
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      --force)
+        force_remove=1
+        ;;
+      --*)
+        print -u2 -- "error: unknown option for remove-module: ${1}"
+        print -u2 -- 'usage: csm remove-module [--force] [-i|--interactive|--no-interactive] <module> [profile]'
+        return 1
+        ;;
+      *)
+        positional_args+=("${1}")
+        ;;
+    esac
+    shift
+  done
+
+  if (( ${#positional_args[@]} > 2 )); then
+    print -u2 -- 'usage: csm remove-module [--force] [-i|--interactive|--no-interactive] <module> [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${positional_args[2]:-}")" || return 1
+  interactive_mode="$(csm-resolve-interactive-mode ${#opt_interactive[@]} ${#opt_no_interactive[@]} 0)" || return 1
+  module_name="$(csm-resolve-module-name "${interactive_mode}" "${profile_name}" any "${positional_args[1]:-}")" || return 1
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+  module_file="${user_config_dir}/modules/${module_name}.zsh"
+  function_candidates=(${(f)"$(module_local_function_files "${profile_name}" "${module_name}" 2>/dev/null)"})
+
+  if [[ ! -e "${module_file}" && ${#function_candidates[@]} -eq 0 ]]; then
+    print -u2 -- "remove-module: nothing to remove for '${module_name}' in ${user_config_dir}"
+    return 1
+  fi
+
+  if (( ! force_remove )); then
+    confirm_destructive_action "󰆴 remove local module '${module_name}' from ${profile_name}?" || return 1
+  fi
+
+  if [[ -e "${module_file}" ]]; then
+    rm -- "${module_file}"
+    print -- "remove-module: removed module -> ${module_file}"
+  fi
+
+  for function_file in "${function_candidates[@]}"; do
+    rm -- "${function_file}"
+    print -- "remove-module: removed function -> ${function_file}"
+  done
+
+  if module_is_enabled "${profile_name}" "${module_name}" && module_has_curated_source "${profile_name}" "${module_name}"; then
+    print -- "remove-module: local fork removed; enabled curated module will be used on next shell startup"
+  else
+    print -- "remove-module: local fork removed"
+  fi
+}
+
+#
+# Reset local forks of curated modules back to the current curated version.
+# Arguments:
+#   $1 - Optional profile directory name. Defaults to the current profile when detectable.
+#   --force - Skip the interactive confirmation prompt.
+# Returns:
+#   0 on success, non-zero on invalid usage or cancelled confirmation.
+# Side effects:
+#   Overwrites local module and function files for curated modules that have local forks.
+sync_curated_modules() {
+  emulate -L zsh
+
+  local force_sync=0
+  local profile_name module_name module_source module_dest user_config_dir functions_source function_path function_dest
+  local -a positional_args curated_names local_names module_names
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      --force)
+        force_sync=1
+        ;;
+      --*)
+        print -u2 -- "error: unknown option for sync-curated-modules: ${1}"
+        print -u2 -- 'usage: csm sync-curated-modules [--force] [profile]'
+        return 1
+        ;;
+      *)
+        positional_args+=("${1}")
+        ;;
+    esac
+    shift
+  done
+
+  if (( ${#positional_args[@]} > 1 )); then
+    print -u2 -- 'usage: csm sync-curated-modules [--force] [profile]'
+    return 1
+  fi
+
+  profile_name="$(resolve_settings_profile "${positional_args[1]:-}")" || return 1
+  curated_names=(${(f)"$(curated_module_names "${profile_name}")"})
+  local_names=(${(f)"$(local_module_names "${profile_name}")"})
+  module_names=()
+
+  for module_name in "${local_names[@]}"; do
+    (( ${curated_names[(Ie)${module_name}]} )) || continue
+    module_names+=("${module_name}")
+  done
+
+  if (( ${#module_names[@]} == 0 )); then
+    print -- "sync-curated-modules: no local curated forks to sync for ${profile_name}"
+    return 0
+  fi
+
+  if (( ! force_sync )); then
+    confirm_destructive_action "󰆴 reset local curated forks for ${profile_name}? ${(j:, :)module_names}" || return 1
+  fi
+
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+  mkdir -p -- "${user_config_dir}/modules" "${user_config_dir}/functions"
+
+  for module_name in "${module_names[@]}"; do
+    module_source="$(curated_module_source_file "${profile_name}" "${module_name}")" || return 1
+    module_dest="${user_config_dir}/modules/${module_name}.zsh"
+    cp -- "${module_source}" "${module_dest}" || return 1
+    print -- "sync-curated-modules: synced module -> ${module_dest}"
+
+    if functions_source="$(curated_module_functions_dir "${profile_name}" "${module_name}" 2>/dev/null)"; then
+      for function_path in ${functions_source}/*(N-.); do
+        function_dest="${user_config_dir}/functions/${function_path:t}"
+        cp -- "${function_path}" "${function_dest}" || return 1
+        print -- "sync-curated-modules: synced function -> ${function_dest}"
+      done
+    fi
+  done
+}
+
+#
+# Create a starter local module and sample autoload function for one profile.
+# Arguments:
+#   $1 - Module name.
+#   $2 - Optional profile directory name. Defaults to the current profile when detectable.
+# Returns:
+#   0 on success, non-zero on invalid usage or when files already exist.
+# Side effects:
+#   Creates user-local module and function files in the XDG config tree.
+init_module() {
+  emulate -L zsh
+
+  local profile_name module_name user_config_dir module_file function_name function_file
+  local -a positional_args
+
+  while (( $# > 0 )); do
+    case "${1}" in
+      --*)
+        print -u2 -- "error: unknown option for init-module: ${1}"
+        print -u2 -- 'usage: csm init-module <module> [profile]'
+        return 1
+        ;;
+      *)
+        positional_args+=("${1}")
+        ;;
+    esac
+    shift
+  done
+
+  if (( ${#positional_args[@]} < 1 || ${#positional_args[@]} > 2 )); then
+    print -u2 -- 'usage: csm init-module <module> [profile]'
+    return 1
+  fi
+
+  module_name="${positional_args[1]}"
+  profile_name="$(resolve_settings_profile "${positional_args[2]:-}")" || return 1
+  user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+  module_file="${user_config_dir}/modules/${module_name}.zsh"
+  function_name="${module_name}-example"
+  function_file="${user_config_dir}/functions/${function_name}"
+
+  mkdir -p -- "${module_file:h}" "${function_file:h}"
+
+  if [[ -e "${module_file}" || -e "${function_file}" ]]; then
+    print -u2 -- "init-module: module scaffold already exists for '${module_name}'"
+    print -u2 -- "init-module: module file -> ${module_file}"
+    print -u2 -- "init-module: function file -> ${function_file}"
+    return 1
+  fi
+
+  cat > "${module_file}" <<EOF
+# Local ${module_name} module for ${profile_name}.
+# Keep module files light and let autoloaded functions hold the main logic.
+
+autoload -Uz ${function_name}
+
+alias ${module_name}x='${function_name}'
+EOF
+
+  cat > "${function_file}" <<EOF
+# Sample local function for the ${module_name} module.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing a placeholder message.
+# Side effects:
+#   Writes to stdout.
+${function_name}() {
+  print -r -- '${module_name}: sample function'
+}
+EOF
+
+  print -- "init-module: created module scaffold -> ${module_file}"
+  print -- "init-module: created sample function -> ${function_file}"
+  print -- "init-module: add '${module_name}' to SHELL_FORTRESS_LOCAL_MODULES in ${user_config_dir}/env.zsh to enable it"
 }
 
 #
@@ -612,14 +2086,15 @@ select_profile() {
   emulate -L zsh
 
   local current_profile selected requested_profile profile switch_mode mode_label
-  local -a opt_clean
+  local interactive_mode
+  local -a opt_clean opt_interactive opt_no_interactive
   local -a profiles
 
-  zparseopts -D -E -- -clean=opt_clean || return 1
+  zparseopts -D -E i=opt_interactive -clean=opt_clean -interactive=opt_interactive -no-interactive=opt_no_interactive || return 1
 
   if (( $# > 1 )); then
     print -u2 -- "error: unexpected arguments for select: $*"
-    print -u2 -- 'usage: csm select [--clean] [profile]'
+    print -u2 -- 'usage: csm select [--clean] [-i|--interactive|--no-interactive] [profile]'
     return 1
   fi
 
@@ -649,8 +2124,14 @@ select_profile() {
   fi
 
   current_profile="$(current_profile_name 2>/dev/null || true)"
+  interactive_mode="$(csm-resolve-interactive-mode ${#opt_interactive[@]} ${#opt_no_interactive[@]} 1)" || return 1
 
-  # Prefer fzf when present, but keep a native zsh fallback for minimal profiles.
+  if (( ! interactive_mode )); then
+    print -u2 -- 'csm select: no profile argument provided and interactive mode is disabled'
+    print -u2 -- 'csm select: pass a profile name or use -i/--interactive'
+    return 1
+  fi
+
   if (( $+commands[fzf] )); then
     selected=$(
       printf '%s\n' "${profiles[@]}" | fzf \
@@ -664,14 +2145,7 @@ select_profile() {
         --preview-window='right:60%:wrap'
     ) || return 1
   else
-    print -- 'fzf not found; using zsh select menu.'
-    select profile in "${profiles[@]}"; do
-      if [[ -n "${profile}" ]]; then
-        selected="${profile}"
-        break
-      fi
-      print -u2 -- 'Invalid selection.'
-    done
+    selected="$(csm-select-from-list 'profile' "${profiles[@]}")" || return 1
   fi
 
   [[ -n "${selected}" ]] || return 1
@@ -886,7 +2360,7 @@ clear_history() {
   local -a opt_all profiles history_files
 
   # Parse long options natively so argument handling stays explicit and auditable.
-  zparseopts -D -E -- -all=opt_all || return 1
+  zparseopts -D -E -all=opt_all || return 1
 
   if (( $# != 0 )); then
     print -u2 -- "error: unexpected arguments for clear-history: $*"
@@ -926,6 +2400,127 @@ clear_history() {
     else
       print -- "clear-history: no history files found for ${profiles[1]}"
     fi
+  fi
+}
+
+#
+# Reset mutable profile state, cache, runtime files, and optionally local config.
+# Arguments:
+#   $@ - Optional flags parsed with zparseopts. Supports --all, --include-local, and --force.
+# Returns:
+#   0 on success, non-zero on invalid arguments or profile detection failure.
+# Side effects:
+#   Deletes mutable XDG state, cache, runtime, data, and optionally local config paths.
+reset_profile() {
+  emulate -L zsh
+
+  local profile_name path_value state_dir cache_dir runtime_dir data_dir history_file user_config_dir
+  local selector_reset=0
+  local removed=0
+  local -A seen_history_files
+  local -a opt_all opt_include_local opt_force profiles removal_paths
+
+  zparseopts -D -E -- -all=opt_all -include-local=opt_include_local -force=opt_force || return 1
+
+  if (( $# > 1 )); then
+    print -u2 -- "error: unexpected arguments for reset-profile: $*"
+    print -u2 -- 'usage: csm reset-profile [--all] [--include-local] [--force] [profile]'
+    return 1
+  fi
+
+  if (( ${#opt_all} > 0 )); then
+    if (( $# == 1 )); then
+      print -u2 -- 'usage: csm reset-profile [--all] [--include-local] [--force] [profile]'
+      print -u2 -- 'reset-profile: do not pass a profile name together with --all'
+      return 1
+    fi
+    profiles=(${(f)"$(available_profiles)"})
+  elif (( $# == 1 )); then
+    profiles=("${1}")
+    if ! is_known_profile "${profiles[1]}"; then
+      print -u2 -- "reset-profile: unknown profile: ${profiles[1]}"
+      print -u2 -- "reset-profile: available profiles: ${(j:, :)${(f)"$(available_profiles)"}}"
+      return 1
+    fi
+  else
+    profiles=($(current_profile_name)) || return 1
+  fi
+
+  if (( ${#profiles} == 0 )); then
+    print -u2 -- 'reset-profile: no profiles available to reset'
+    return 1
+  fi
+
+  if (( ${#opt_force} == 0 )); then
+    local prompt_text
+    prompt_text="󰆴 reset mutable shell-config state for ${(j:, :)profiles}?"
+    if (( ${#opt_include_local} > 0 )); then
+      prompt_text="${prompt_text} (including shell-config.local overrides)"
+    fi
+    confirm_destructive_action "${prompt_text}" || return 1
+  fi
+
+  for profile_name in "${profiles[@]}"; do
+    state_dir="$(profile_state_dir "${profile_name}")" || return 1
+    cache_dir="$(profile_cache_dir "${profile_name}")" || return 1
+    runtime_dir="$(profile_runtime_dir "${profile_name}")" || return 1
+    data_dir="$(profile_data_dir "${profile_name}")" || return 1
+    user_config_dir="$(profile_user_config_dir "${profile_name}")" || return 1
+    history_file="$(profile_history_file "${profile_name}")" || return 1
+
+    removal_paths=(
+      "${cache_dir}"
+      "${runtime_dir}"
+      "${data_dir}"
+      "${state_dir}"
+    )
+
+    if [[ -n "${history_file}" && -z "${seen_history_files[${history_file}]:-}" ]]; then
+      seen_history_files[${history_file}]=1
+      case "${history_file}" in
+        "${SHELL_PROFILE_STATE_ROOT}/shared/history")
+          if (( ${#opt_all} > 0 )); then
+            removal_paths+=("${history_file}")
+          else
+            print -- "reset-profile: preserved shared history for ${profile_name} -> ${history_file}"
+          fi
+          ;;
+        *)
+          removal_paths+=("${history_file}")
+          ;;
+      esac
+    fi
+
+    if (( ${#opt_include_local} > 0 )); then
+      removal_paths+=("${user_config_dir}")
+    fi
+
+    for path_value in "${removal_paths[@]}"; do
+      if [[ -e "${path_value}" || -L "${path_value}" ]]; then
+        remove_reset_path "${path_value}" "${profile_name}"
+        removed=1
+      fi
+    done
+  done
+
+  if (( ${#opt_all} > 0 )) && [[ -e "${SHELL_CONFIG_STATE_FILE}" || -L "${SHELL_CONFIG_STATE_FILE}" ]]; then
+    remove_reset_path "${SHELL_CONFIG_STATE_FILE}" 'active-profile selector'
+    selector_reset=1
+    removed=1
+  fi
+
+  if (( ${#opt_all} > 0 )) && [[ -e "${SHELL_PROFILE_STATE_ROOT}/shared/history" || -L "${SHELL_PROFILE_STATE_ROOT}/shared/history" ]]; then
+    remove_reset_path "${SHELL_PROFILE_STATE_ROOT}/shared/history" 'shared history'
+    removed=1
+  fi
+
+  if (( ! removed )); then
+    print -- 'reset-profile: nothing to remove'
+    return 0
+  fi
+
+  if (( selector_reset )); then
+    print -- 'reset-profile: removed the saved active-profile selector; the next shell will fall back to zsh-clean unless SHELL_CONFIG_PROFILE is set'
   fi
 }
 
@@ -1219,7 +2814,7 @@ main() {
   shift $(( $# > 0 ? 1 : 0 ))
 
   case "${command}" in
-    '')
+    ''|-h|--help|help)
       usage
       ;;
     bootstrap)
@@ -1240,6 +2835,30 @@ main() {
     edit-settings)
       edit_settings "$@"
       ;;
+    list-modules)
+      list_modules "$@"
+      ;;
+    describe-module)
+      describe_module "$@"
+      ;;
+    install-module)
+      install_module "$@"
+      ;;
+    enable-module)
+      enable_module "$@"
+      ;;
+    disable-module)
+      disable_module "$@"
+      ;;
+    remove-module)
+      remove_module "$@"
+      ;;
+    sync-curated-modules)
+      sync_curated_modules "$@"
+      ;;
+    init-module)
+      init_module "$@"
+      ;;
     check)
       check_configuration "$@"
       ;;
@@ -1251,6 +2870,9 @@ main() {
       ;;
     clear-history)
       clear_history "$@"
+      ;;
+    reset-profile)
+      reset_profile "$@"
       ;;
     sync-catppuccin)
       sync_catppuccin_assets "$@"

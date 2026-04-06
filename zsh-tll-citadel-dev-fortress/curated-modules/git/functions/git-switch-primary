@@ -1,0 +1,14 @@
+# Switch to the repository's primary branch.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 when git switch succeeds, otherwise non-zero.
+# Side effects:
+#   Runs git switch in the current repository.
+git-switch-primary() {
+  local branch_name
+
+  branch_name="$(git-primary-branch)" || return 1
+  command git switch "${branch_name}"
+}

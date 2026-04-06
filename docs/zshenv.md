@@ -8,8 +8,10 @@ That file is intentionally small:
 ```zsh
 # Select the active ZDOTDIR profile for this repository.
 typeset -gr SHELL_CONFIG_ROOT="${${(%):-%N}:A:h}"
-typeset -gr SHELL_CONFIG_STATE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config"
+typeset -gr SHELL_CONFIG_STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/shell-config"
 typeset -gr SHELL_CONFIG_STATE_FILE="${SHELL_CONFIG_STATE_DIR}/active-profile"
+typeset -gr SHELL_CONFIG_LEGACY_STATE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config"
+typeset -gr SHELL_CONFIG_LEGACY_STATE_FILE="${SHELL_CONFIG_LEGACY_STATE_DIR}/active-profile"
 typeset -gr SHELL_CONFIG_SHARED_PATH="${SHELL_CONFIG_ROOT}/shared/path.zsh"
 
 if [[ -r "${SHELL_CONFIG_SHARED_PATH}" ]]; then
@@ -18,6 +20,10 @@ fi
 
 if [[ -z "${SHELL_CONFIG_PROFILE:-}" && -r "${SHELL_CONFIG_STATE_FILE}" ]]; then
   read -r SHELL_CONFIG_PROFILE < "${SHELL_CONFIG_STATE_FILE}"
+fi
+
+if [[ -z "${SHELL_CONFIG_PROFILE:-}" && -r "${SHELL_CONFIG_LEGACY_STATE_FILE}" ]]; then
+  read -r SHELL_CONFIG_PROFILE < "${SHELL_CONFIG_LEGACY_STATE_FILE}"
 fi
 
 : "${SHELL_CONFIG_PROFILE:=zsh-clean}"
@@ -101,7 +107,10 @@ This defines where the last interactively selected profile is stored.
 
 Default location:
 
-- `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config/active-profile`
+- `${XDG_STATE_HOME:-$HOME/.local/state}/shell-config/active-profile`
+
+This keeps the live selector state out of the repository checkout when the repo
+is installed at `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config`.
 
 ### `if [[ -z "${SHELL_CONFIG_PROFILE:-}" && -r "${SHELL_CONFIG_STATE_FILE}" ]]; then`
 
@@ -110,8 +119,9 @@ This loads a saved profile only when the environment has not already selected on
 Selection priority is:
 
 1. `SHELL_CONFIG_PROFILE` from the environment
-2. saved `active-profile`
-3. default fallback
+2. saved `active-profile` under XDG state
+3. legacy `active-profile` under XDG config, for compatibility with older installs
+4. default fallback
 
 ### `: "${SHELL_CONFIG_PROFILE:=zsh-clean}"`
 
@@ -186,6 +196,8 @@ The one current exception is [`shared/path.zsh`](/home/timl/projects/tboss/shell
 
 The manager command [`scripts/csm`](/home/timl/projects/tboss/shell-config/scripts/csm) installs `~/.zshenv` as a symlink to the repository root selector when run as `./scripts/csm bootstrap`.
 That same bootstrap step also links `~/.local/bin/csm` to the repository manager command so profile management is easy to access from the command line.
+Profile selection state itself is then written under XDG state rather than into
+the checkout.
 
 That approach keeps the source of truth in the repo while still letting zsh discover `.zshenv` during normal startup.
 
@@ -205,7 +217,9 @@ Startup flow:
 4. The selector sets `ZDOTDIR` to `$HOME/.config/shell-config/zsh-zero`
 5. `zsh` continues startup using files from the `zsh-zero` profile
 
-If `SHELL_CONFIG_PROFILE` is unset, step 4 resolves from the saved `active-profile` file when present, or falls back to `zsh-clean`.
+If `SHELL_CONFIG_PROFILE` is unset, step 4 resolves from the saved
+`active-profile` file under XDG state when present, falls back to the legacy
+config-path file for older installs, or finally falls back to `zsh-clean`.
 
 ## Interactive Selection
 
@@ -217,7 +231,7 @@ For example, [`zsh-clean/functions/zsh-profile-select`](/home/timl/projects/tbos
 1. discover available `zsh-*` profile directories
 2. use `fzf` if available
 3. fall back to native zsh `select` if `fzf` is missing
-4. save the choice to `active-profile`
+4. save the choice to `active-profile` under XDG state
 5. unset `ZDOTDIR`
 6. `exec zsh`
 

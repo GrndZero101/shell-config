@@ -1,0 +1,13 @@
+# Insert the csm command prefix into the active command line.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after inserting the command prefix.
+# Side effects:
+#   Mutates LBUFFER in the active zle widget context.
+fortress-csm-widget() {
+  emulate -L zsh
+
+  fortress-zle-insert-command 'csm '
+}

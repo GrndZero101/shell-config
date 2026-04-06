@@ -1,0 +1,42 @@
+# Roll back a temporary greframe branch without touching the original source branch.
+#
+# Arguments:
+#   $1: Optional temp branch name. Defaults to the current branch.
+# Returns:
+#   0 when the temporary branch is removed, otherwise non-zero.
+# Side effects:
+#   Switches branches, deletes a local branch, and removes branch-local greframe metadata.
+greframe-rollback() {
+  local temp_branch
+  local base_branch
+  local source_branch
+  local current_branch
+
+  if [[ $# -gt 1 ]]; then
+    print -u2 -- 'usage: greframe-rollback [temp-branch]'
+    return 1
+  fi
+
+  git-reframe-require-repo || return 1
+  git-reframe-require-clean-worktree || return 1
+
+  temp_branch=${1:-$(command git branch --show-current 2>/dev/null)}
+  [[ -n "${temp_branch}" ]] || git-reframe-fail 'unable to determine the temporary branch' || return 1
+  git-reframe-require-local-branch "${temp_branch}" || return 1
+
+  base_branch="$(git-reframe-read-metadata "${temp_branch}" fortressbasebranch)"
+  [[ -n "${base_branch}" ]] || base_branch="$(git-reframe-primary-branch)" || return 1
+  source_branch="$(git-reframe-read-metadata "${temp_branch}" fortresssourcebranch)"
+  current_branch="$(command git branch --show-current 2>/dev/null)"
+
+  if [[ "${current_branch}" == "${temp_branch}" ]]; then
+    command git switch "${base_branch}" || return 1
+  fi
+
+  command git branch -D "${temp_branch}" || return 1
+  git-reframe-clear-metadata "${temp_branch}"
+
+  git-reframe-summary-line removed "${temp_branch}"
+  git-reframe-summary-line base "${base_branch}"
+  [[ -n "${source_branch}" ]] && git-reframe-summary-line preserved_source "${source_branch}"
+}

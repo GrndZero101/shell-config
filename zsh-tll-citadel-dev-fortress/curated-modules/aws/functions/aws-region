@@ -1,0 +1,9 @@
+# Print the active AWS region.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing the region or unset.
+aws-region() {
+  print -r -- "${AWS_REGION:-unset}"
+}

@@ -1,0 +1,11 @@
+# Search GitHub with the fortress web_search helper.
+#
+# Arguments:
+#   $@: Search terms.
+# Returns:
+#   0 when the helper dispatches successfully, otherwise non-zero.
+# Side effects:
+#   Opens the query in the configured browser via web_search.
+web-search-github() {
+  web_search gh "$@"
+}

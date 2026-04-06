@@ -1,0 +1,350 @@
+# Open a television picker for general local git branch management.
+#
+# Arguments:
+#   --action <checkout|delete|force-delete|cleanup>: Optional non-interactive action.
+#   --delete-remote: Also delete matching origin branches for delete or cleanup flows.
+#   --force: Skip the final confirmation prompt.
+#   --: Forward the remaining arguments directly to television.
+# Returns:
+#   0 when the requested action succeeds or nothing is selected, otherwise non-zero.
+# Side effects:
+#   Reads git refs, launches the television UI, may switch branches, and may
+#   delete local and remote branches.
+tv-git-branches-manage() {
+  emulate -L zsh
+
+  local action_mode=''
+  local delete_remote=0
+  local force_mode=0
+  local base_branch=''
+  local current_branch=''
+  local selection=''
+  local target_branch=''
+  local current_action=''
+  local prompt_reply=''
+  local line=''
+  local -a tv_args
+  local -a selected_branches
+  local -a plan_lines
+
+  # Classify one local branch for cleanup eligibility.
+  #
+  # Arguments:
+  #   $1: Branch name to inspect.
+  # Returns:
+  #   0 after printing "<action> <remote-state> <note>" for cleanup-safe branches,
+  #   otherwise 1 when the branch is not cleanup-safe.
+  # Side effects:
+  #   Reads git refs, ancestry, metadata, and patch-equivalence state.
+  _tv_git_branch_manage_classify_cleanup() {
+    local branch_name=$1
+    local remote_state='local-only'
+    local source_branch=''
+    local final_branch=''
+    local cherry_output=''
+
+    command git show-ref --verify --quiet "refs/remotes/origin/${branch_name}" && remote_state='origin'
+
+    if [[ "${branch_name}" == *--wip-* ]]; then
+      source_branch="$(git config --get "branch.${branch_name}.fortresssourcebranch" 2>/dev/null)" || source_branch=''
+      final_branch="$(git config --get "branch.${branch_name}.fortressfinalbranch" 2>/dev/null)" || final_branch=''
+      if [[ -n "${final_branch}" ]]; then
+        print -r -- "temp ${remote_state} final=${final_branch}"
+      elif [[ -n "${source_branch}" ]]; then
+        print -r -- "temp ${remote_state} source=${source_branch}"
+      else
+        print -r -- "temp ${remote_state} rollback"
+      fi
+      return 0
+    fi
+
+    if command git merge-base --is-ancestor "${branch_name}" "${base_branch}"; then
+      print -r -- "merged ${remote_state} merged-into-${base_branch}"
+      return 0
+    fi
+
+    if command git diff --quiet "${base_branch}" "${branch_name}" >/dev/null 2>&1; then
+      print -r -- "squash ${remote_state} tree-equal-to-${base_branch}"
+      return 0
+    fi
+
+    cherry_output="$(command git cherry "${base_branch}" "${branch_name}" 2>/dev/null)" || return 1
+    if [[ -n "${cherry_output}" ]] && [[ -z "$(print -r -- "${cherry_output}" | command awk '$1 != "-" { print; exit 0 }')" ]]; then
+      print -r -- "squash ${remote_state} patch-equivalent-to-${base_branch}"
+      return 0
+    fi
+
+    return 1
+  }
+
+  # Return a compact preview state for one branch.
+  #
+  # Arguments:
+  #   $1: Branch name to inspect.
+  # Returns:
+  #   0 after printing a compact state label.
+  # Side effects:
+  #   Reads git refs and cleanup classification state.
+  _tv_git_branch_manage_state_label() {
+    local branch_name=$1
+    local cleanup_line=''
+    local remote_state='local'
+
+    command git show-ref --verify --quiet "refs/remotes/origin/${branch_name}" && remote_state='origin'
+
+    if [[ "${branch_name}" == "${current_branch}" && "${branch_name}" == "${base_branch}" ]]; then
+      print -r -- "current+primary ${remote_state}"
+      return 0
+    fi
+    if [[ "${branch_name}" == "${current_branch}" ]]; then
+      print -r -- "current ${remote_state}"
+      return 0
+    fi
+    if [[ "${branch_name}" == "${base_branch}" ]]; then
+      print -r -- "primary ${remote_state}"
+      return 0
+    fi
+
+    cleanup_line="$(_tv_git_branch_manage_classify_cleanup "${branch_name}")" || cleanup_line=''
+    if [[ -n "${cleanup_line}" ]]; then
+      print -r -- "${cleanup_line}"
+    else
+      print -r -- "branch ${remote_state} manual"
+    fi
+  }
+
+  # Remove the matching origin branch when requested and present.
+  #
+  # Arguments:
+  #   $1: Branch name to remove on origin.
+  # Returns:
+  #   0 when no remote exists or deletion succeeds, otherwise non-zero.
+  # Side effects:
+  #   May run git push origin --delete.
+  _tv_git_branch_manage_delete_remote() {
+    local branch_name=$1
+
+    if command git show-ref --verify --quiet "refs/remotes/origin/${branch_name}"; then
+      command git push origin --delete "${branch_name}" || return 1
+      print -r -- "tv-git-branches-manage removed remote branch: origin/${branch_name}"
+    else
+      print -r -- "tv-git-branches-manage remote branch not found: origin/${branch_name}"
+    fi
+  }
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --action|-a)
+        [[ $# -ge 2 ]] || { print -u2 -- 'usage: tv-git-branches-manage [--action <checkout|delete|force-delete|cleanup>] [--delete-remote] [--force] [-- <tv args...>]'; return 1; }
+        action_mode=$2
+        shift 2
+        ;;
+      --delete-remote)
+        delete_remote=1
+        shift
+        ;;
+      --force)
+        force_mode=1
+        shift
+        ;;
+      --help|-h)
+        print -r -- 'usage: tv-git-branches-manage [--action <checkout|delete|force-delete|cleanup>] [--delete-remote] [--force] [-- <tv args...>]'
+        return 0
+        ;;
+      --)
+        shift
+        tv_args=("$@")
+        break
+        ;;
+      *)
+        print -u2 -- 'usage: tv-git-branches-manage [--action <checkout|delete|force-delete|cleanup>] [--delete-remote] [--force] [-- <tv args...>]'
+        return 1
+        ;;
+    esac
+  done
+
+  (( $+commands[tv] )) || {
+    print -u2 -- 'tv-git-branches-manage: tv is not installed or not yet on PATH'
+    return 1
+  }
+  command git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+    print -u2 -- 'tv-git-branches-manage: not inside a git repository'
+    return 1
+  }
+  if [[ -n "$(command git status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+    print -u2 -- 'tv-git-branches-manage: worktree is not clean; commit or stash changes first'
+    return 1
+  fi
+
+  case "${action_mode}" in
+    ''|checkout|delete|force-delete|cleanup)
+      ;;
+    *)
+      print -u2 -- "tv-git-branches-manage: unsupported action: ${action_mode}"
+      return 1
+      ;;
+  esac
+
+  base_branch="$(git-primary-branch)" || return 1
+  current_branch="$(command git branch --show-current 2>/dev/null)"
+  selection="$(
+    tv-fortress-run \
+      fortress-git-branches-manage \
+      "${tv_args[@]}"
+  )"
+
+  [[ -n "${selection}" ]] || return 0
+  selected_branches=(${(f)selection})
+
+  if [[ -z "${action_mode}" ]]; then
+    if [[ ! -t 0 ]]; then
+      print -u2 -- 'tv-git-branches-manage: no interactive terminal available; rerun with --action for non-interactive use'
+      return 1
+    fi
+
+    print -r -- 'tv-git-branches-manage selected branches:'
+    for target_branch in "${selected_branches[@]}"; do
+      print -r -- "  ${target_branch} [$(_tv_git_branch_manage_state_label "${target_branch}")]"
+    done
+    print -r -- 'Choose action: [c]heckout, [d]elete, [f]orce-delete, [k]cleanup, [q]uit'
+    printf '%s' 'action> '
+    read -r prompt_reply
+    case "${prompt_reply:l}" in
+      c|checkout) action_mode='checkout' ;;
+      d|delete) action_mode='delete' ;;
+      f|force-delete) action_mode='force-delete' ;;
+      k|cleanup) action_mode='cleanup' ;;
+      q|quit|'') print -u2 -- 'tv-git-branches-manage: cancelled'; return 1 ;;
+      *)
+        print -u2 -- "tv-git-branches-manage: unknown action: ${prompt_reply}"
+        return 1
+        ;;
+    esac
+
+    if [[ "${action_mode}" != 'checkout' ]]; then
+      printf '%s' 'delete matching origin branches too? [y/N] '
+      read -r prompt_reply
+      if [[ "${prompt_reply:l}" == 'y' || "${prompt_reply:l}" == 'yes' ]]; then
+        delete_remote=1
+      fi
+    fi
+  fi
+
+  if [[ "${action_mode}" == 'checkout' && ${#selected_branches[@]} -ne 1 ]]; then
+    print -u2 -- 'tv-git-branches-manage: checkout requires exactly one selected branch'
+    return 1
+  fi
+
+  for target_branch in "${selected_branches[@]}"; do
+    command git show-ref --verify --quiet "refs/heads/${target_branch}" || {
+      print -u2 -- "tv-git-branches-manage: local branch does not exist: ${target_branch}"
+      return 1
+    }
+
+    case "${action_mode}" in
+      checkout)
+        plan_lines+=("${target_branch} checkout")
+        ;;
+      delete)
+        plan_lines+=("${target_branch} delete")
+        ;;
+      force-delete)
+        plan_lines+=("${target_branch} force-delete")
+        ;;
+      cleanup)
+        line="$(_tv_git_branch_manage_classify_cleanup "${target_branch}")" || {
+          print -u2 -- "tv-git-branches-manage: branch is not a cleanup candidate: ${target_branch}"
+          return 1
+        }
+        plan_lines+=("${target_branch} cleanup ${line}")
+        ;;
+    esac
+  done
+
+  if (( ! force_mode )); then
+    if [[ ! -t 0 ]]; then
+      print -u2 -- 'tv-git-branches-manage: no interactive terminal available; rerun with --force for non-interactive use'
+      return 1
+    fi
+
+    print -r -- 'tv-git-branches-manage plan:'
+    for line in "${plan_lines[@]}"; do
+      print -r -- "  ${line}"
+    done
+    if (( delete_remote )) && [[ "${action_mode}" != 'checkout' ]]; then
+      print -r -- 'tv-git-branches-manage remote cleanup: enabled'
+    else
+      print -r -- 'tv-git-branches-manage remote cleanup: disabled'
+    fi
+    printf '%s' 'Proceed? [y/N] '
+    read -r prompt_reply
+    [[ "${prompt_reply:l}" == 'y' || "${prompt_reply:l}" == 'yes' ]] || {
+      print -u2 -- 'tv-git-branches-manage: cancelled'
+      return 1
+    }
+  fi
+
+  for line in "${plan_lines[@]}"; do
+    target_branch="${line%% *}"
+    current_action="${${line#* }%% *}"
+
+    command git show-ref --verify --quiet "refs/heads/${target_branch}" || continue
+
+    if [[ "${current_action}" != 'checkout' && "${target_branch}" == "${base_branch}" ]]; then
+      print -u2 -- "tv-git-branches-manage: refusing to delete the primary branch: ${base_branch}"
+      return 1
+    fi
+
+    case "${current_action}" in
+      checkout)
+        command git switch "${target_branch}" || return 1
+        print -r -- "tv-git-branches-manage switched to branch: ${target_branch}"
+        ;;
+      delete)
+        if [[ "$(command git branch --show-current 2>/dev/null)" == "${target_branch}" ]]; then
+          command git switch "${base_branch}" || return 1
+        fi
+        command git branch -d "${target_branch}" || return 1
+        print -r -- "tv-git-branches-manage removed local branch: ${target_branch}"
+        (( delete_remote )) && _tv_git_branch_manage_delete_remote "${target_branch}" || true
+        ;;
+      force-delete)
+        if [[ "$(command git branch --show-current 2>/dev/null)" == "${target_branch}" ]]; then
+          command git switch "${base_branch}" || return 1
+        fi
+        command git branch -D "${target_branch}" || return 1
+        print -r -- "tv-git-branches-manage force-removed local branch: ${target_branch}"
+        (( delete_remote )) && _tv_git_branch_manage_delete_remote "${target_branch}" || true
+        ;;
+      cleanup)
+        line="$(_tv_git_branch_manage_classify_cleanup "${target_branch}")" || {
+          print -u2 -- "tv-git-branches-manage: branch is no longer a cleanup candidate: ${target_branch}"
+          return 1
+        }
+        current_action="${line%% *}"
+        case "${current_action}" in
+          merged)
+            if (( delete_remote )); then
+              gdone "${target_branch}" --force || return 1
+            else
+              gdone "${target_branch}" --force --keep-remote || return 1
+            fi
+            ;;
+          temp)
+            greframe-rollback "${target_branch}" || return 1
+            print -r -- "tv-git-branches-manage cleaned temp branch: ${target_branch}"
+            (( delete_remote )) && _tv_git_branch_manage_delete_remote "${target_branch}" || true
+            ;;
+          squash)
+            if [[ "$(command git branch --show-current 2>/dev/null)" == "${target_branch}" ]]; then
+              command git switch "${base_branch}" || return 1
+            fi
+            command git branch -D "${target_branch}" || return 1
+            print -r -- "tv-git-branches-manage cleaned squash-equivalent branch: ${target_branch}"
+            (( delete_remote )) && _tv_git_branch_manage_delete_remote "${target_branch}" || true
+            ;;
+        esac
+        ;;
+    esac
+  done
+}

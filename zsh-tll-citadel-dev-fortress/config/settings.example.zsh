@@ -6,12 +6,13 @@
 SHELL_FORTRESS_SETTING_HISTSIZE=100000
 SHELL_FORTRESS_SETTING_SAVEHIST=100000
 SHELL_FORTRESS_SETTING_KEYTIMEOUT=1
+SHELL_FORTRESS_SETTING_EDITOR=nvim
 
-# Prompt engine selection: auto, oh-my-posh, starship, or native.
+# Prompt engine selection: auto, starship, or native.
 SHELL_FORTRESS_SETTING_PROMPT_ENGINE=auto
 
 # Core fortress feature toggles.
-SHELL_FORTRESS_SETTING_ENABLE_NATIVE_GIT=0
+SHELL_FORTRESS_SETTING_ENABLE_NATIVE_GIT=1
 SHELL_FORTRESS_SETTING_ENABLE_ZSH_VI_MODE=1
 SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOCOMPLETE=0
 SHELL_FORTRESS_SETTING_ENABLE_ZSH_AUTOSUGGESTIONS=1
@@ -19,5 +20,6 @@ SHELL_FORTRESS_SETTING_ENABLE_FZF_TAB=1
 SHELL_FORTRESS_SETTING_ENABLE_ATUIN=1
 
 # Supported boolean values: 1/0, true/false, yes/no, on/off.
-# Prompt engine values: auto, oh-my-posh, starship, native.
+# Prompt engine values: auto, starship, native.
+# Editor resolution prefers $EDITOR, then SHELL_FORTRESS_SETTING_EDITOR, then a detected default.
 # Environment variables still win for one-off sessions.

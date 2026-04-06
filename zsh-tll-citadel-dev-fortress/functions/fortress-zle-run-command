@@ -1,0 +1,26 @@
+# Run one command through zle when the current buffer is empty.
+#
+# Arguments:
+#   $1 - Full command text to place in BUFFER and execute.
+# Returns:
+#   0 after handing the command to accept-line, non-zero on invalid usage or safety refusal.
+# Side effects:
+#   Mutates BUFFER and CURSOR in the active zle widget context, may show a status message, and executes the command line.
+fortress-zle-run-command() {
+  emulate -L zsh
+
+  local command_text="${1:-}"
+  local buffer_text
+
+  [[ -n "${command_text}" ]] || return 1
+
+  buffer_text="${BUFFER//[[:space:]]/}"
+  if [[ -n "${buffer_text}" ]]; then
+    zle -M "fortress: current buffer is not empty; run '${command_text}' manually or clear the line first"
+    return 1
+  fi
+
+  BUFFER="${command_text}"
+  CURSOR=${#BUFFER}
+  zle accept-line
+}

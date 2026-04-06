@@ -1,0 +1,18 @@
+# Print the active kubectl namespace.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when kubectl is unavailable or the command fails.
+# Side effects:
+#   Calls the kubectl CLI.
+kubectl-current-namespace() {
+  local namespace_name
+
+  namespace_name="$(kubectl config view --minify --output 'jsonpath={..namespace}')" || return 1
+  if [[ -n "${namespace_name}" ]]; then
+    print -r -- "${namespace_name}"
+  else
+    print -r -- 'default'
+  fi
+}

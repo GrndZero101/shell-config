@@ -5,15 +5,23 @@
 emulate -L zsh
 
 local completion_root
-local -a commands profile_dirs profiles sync_assets
+local -a commands profile_dirs profiles sync_assets fortress_modules local_modules all_modules
 
 commands=(
   'bootstrap:install ~/.zshenv and ~/.local/bin/csm symlinks'
+  'help:show categorized command help'
   'install-fzf-tab:install the official fzf-tab reference clone'
   'install-zinit:install zinit for the fortress profile'
   'select:open the interactive profile selector or switch directly to a profile'
   'init-settings:create a profile settings file from its template'
   'edit-settings:create or open a profile settings file in $VISUAL or $EDITOR'
+  'list-modules:list curated optional modules for a profile'
+  'describe-module:print one module summary and installation state'
+  'install-module:install a curated optional module into the user-local profile config'
+  'enable-module:ensure a local module is enabled in SHELL_FORTRESS_LOCAL_MODULES'
+  'disable-module:ensure a local module is removed from SHELL_FORTRESS_LOCAL_MODULES'
+  'remove-module:remove a local module file and matching local functions after confirmation'
+  'init-module:create a starter local module and sample autoload function'
   'check:validate profile files and zsh syntax'
   'debug-fzf-tab:print fzf-tab troubleshooting diagnostics'
   'clean:remove generated cache and runtime files'
@@ -28,6 +36,11 @@ if [[ -z "${completion_root}" || ! -d "${completion_root}" ]]; then
 fi
 profile_dirs=(${completion_root}/zsh-*(N-/))
 profiles=(${profile_dirs:t})
+fortress_modules=(${completion_root}/zsh-tll-citadel-dev-fortress/curated-modules/*(N-/t))
+local_modules=(${HOME}/.config/shell-config.local/zsh-tll-citadel-dev-fortress/modules/*.zsh(N:t))
+local_modules=(${local_modules%.zsh})
+all_modules=(${fortress_modules} ${local_modules})
+all_modules=(${(u)all_modules})
 
 sync_assets=(
   all
@@ -43,11 +56,20 @@ fi
 case "${words[2]}" in
   select)
     if (( CURRENT == 3 )); then
-      _values 'select argument' --clean "${profiles[@]}"
+      _values 'select option or profile' --clean -i --interactive --no-interactive "${profiles[@]}"
       return 0
     fi
 
-    if (( CURRENT == 4 )) && [[ "${words[3]}" == '--clean' ]]; then
+    if (( CURRENT == 4 )); then
+      case "${words[3]}" in
+        --clean|-i|--interactive|--no-interactive)
+          _values 'select option or profile' --clean -i --interactive --no-interactive "${profiles[@]}"
+          return 0
+          ;;
+      esac
+    fi
+
+    if (( CURRENT >= 4 )); then
       _values 'profile' "${profiles[@]}"
       return 0
     fi
@@ -70,8 +92,80 @@ case "${words[2]}" in
       return 0
     fi
     ;;
-  init-settings|edit-settings)
+  init-settings|edit-settings|list-modules)
     if (( CURRENT == 3 )); then
+      _values 'profile' "${profiles[@]}"
+      return 0
+    fi
+    ;;
+  describe-module)
+    if (( CURRENT == 3 )); then
+      _values 'module' "${all_modules[@]}"
+      return 0
+    fi
+    if (( CURRENT == 4 )); then
+      _values 'profile' "${profiles[@]}"
+      return 0
+    fi
+    ;;
+  init-module)
+    if (( CURRENT == 4 )); then
+      _values 'profile' "${profiles[@]}"
+      return 0
+    fi
+    ;;
+  install-module|enable-module|disable-module|remove-module)
+    if (( CURRENT == 3 )); then
+      case "${words[2]}" in
+        install-module)
+          _values 'install-module option or module' --force --enable -i --interactive --no-interactive "${all_modules[@]}"
+          ;;
+        remove-module)
+          _values 'remove-module option or module' --force -i --interactive --no-interactive "${all_modules[@]}"
+          ;;
+        *)
+          _values 'module option or module' -i --interactive --no-interactive "${all_modules[@]}"
+          ;;
+      esac
+      return 0
+    fi
+
+    if (( CURRENT == 4 )); then
+      case "${words[3]}" in
+        -i|--interactive|--no-interactive)
+          case "${words[2]}" in
+            install-module)
+              _values 'install-module option or module' --force --enable -i --interactive --no-interactive "${all_modules[@]}"
+              ;;
+            remove-module)
+              _values 'remove-module option or module' --force -i --interactive --no-interactive "${all_modules[@]}"
+              ;;
+            *)
+              _values 'module option or module' -i --interactive --no-interactive "${all_modules[@]}"
+              ;;
+          esac
+          return 0
+          ;;
+        --force|--enable)
+          _values 'install-module option or module' --force --enable -i --interactive --no-interactive "${all_modules[@]}"
+          return 0
+          ;;
+      esac
+    fi
+
+    if [[ "${words[2]}" == 'enable-module' || "${words[2]}" == 'disable-module' || "${words[2]}" == 'remove-module' ]] && (( CURRENT >= 4 )); then
+      if [[ "${words[CURRENT-1]}" == -i || "${words[CURRENT-1]}" == --interactive || "${words[CURRENT-1]}" == --no-interactive || "${words[CURRENT-1]}" == --force ]]; then
+        _values 'module or profile' "${all_modules[@]}" "${profiles[@]}"
+      else
+        _values 'profile' "${profiles[@]}" -i --interactive --no-interactive
+      fi
+      return 0
+    fi
+    if (( CURRENT == 4 )); then
+      _values 'install-module option or profile' "${profiles[@]}" --force --enable -i --interactive --no-interactive
+      return 0
+    fi
+    if (( CURRENT >= 5 )) && [[ "${words[2]}" == 'install-module' ]]; then
       _values 'profile' "${profiles[@]}"
       return 0
     fi

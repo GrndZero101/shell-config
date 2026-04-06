@@ -1,0 +1,11 @@
+# Print the current AWS caller identity.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when the CLI call fails.
+# Side effects:
+#   Calls the AWS CLI.
+aws-whoami() {
+  aws sts get-caller-identity
+}

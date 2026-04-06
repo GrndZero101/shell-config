@@ -1,0 +1,74 @@
+# Create the final squash branch from a temporary greframe branch.
+#
+# Arguments:
+#   $1: Optional final branch name. Defaults to temp-branch metadata when present.
+#   --from <temp-branch>: Optional temp branch source. Defaults to the current branch.
+#   --message <title>: Optional squash commit title. When omitted, git commit opens the editor.
+# Returns:
+#   0 when the final squash branch is created and committed, otherwise non-zero.
+# Side effects:
+#   Fetches origin, switches branches, creates a branch, performs a squash merge,
+#   and creates a commit.
+greframe-finish() {
+  local final_branch=''
+  local temp_branch=''
+  local commit_title=''
+  local base_branch
+  local source_branch
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --from)
+        [[ $# -ge 2 ]] || { print -u2 -- 'usage: greframe-finish [final-branch] [--from <temp-branch>] [--message <title>]'; return 1; }
+        temp_branch=$2
+        shift 2
+        ;;
+      --message|-m)
+        [[ $# -ge 2 ]] || { print -u2 -- 'usage: greframe-finish [final-branch] [--from <temp-branch>] [--message <title>]'; return 1; }
+        commit_title=$2
+        shift 2
+        ;;
+      --help|-h)
+        print -r -- 'usage: greframe-finish [final-branch] [--from <temp-branch>] [--message <title>]'
+        return 0
+        ;;
+      *)
+        [[ -z "${final_branch}" ]] || { print -u2 -- 'usage: greframe-finish [final-branch] [--from <temp-branch>] [--message <title>]'; return 1; }
+        final_branch=$1
+        shift
+        ;;
+    esac
+  done
+
+  git-reframe-require-repo || return 1
+  git-reframe-require-clean-worktree || return 1
+
+  temp_branch=${temp_branch:-$(command git branch --show-current 2>/dev/null)}
+  [[ -n "${temp_branch}" ]] || git-reframe-fail 'unable to determine the temporary branch' || return 1
+  git-reframe-require-local-branch "${temp_branch}" || return 1
+
+  [[ -n "${final_branch}" ]] || final_branch="$(git-reframe-read-metadata "${temp_branch}" fortressfinalbranch)"
+  [[ -n "${final_branch}" ]] || git-reframe-fail 'final branch was not provided and no greframe metadata was found' || return 1
+
+  git-reframe-require-available-branch "${final_branch}" || return 1
+
+  base_branch="$(git-reframe-read-metadata "${temp_branch}" fortressbasebranch)"
+  [[ -n "${base_branch}" ]] || base_branch="$(git-reframe-primary-branch)" || return 1
+  source_branch="$(git-reframe-read-metadata "${temp_branch}" fortresssourcebranch)"
+
+  git-reframe-sync-base-branch "${base_branch}" || return 1
+  command git switch -c "${final_branch}" || return 1
+  command git merge --squash "${temp_branch}" || return 1
+
+  if [[ -n "${commit_title}" ]]; then
+    command git commit -m "${commit_title}" || return 1
+  else
+    command git commit || return 1
+  fi
+
+  git-reframe-summary-line source "${source_branch:-unknown}"
+  git-reframe-summary-line temp "${temp_branch}"
+  git-reframe-summary-line base "${base_branch}"
+  git-reframe-summary-line final "${final_branch}"
+  print -r -- "greframe next: git push -u origin ${final_branch}"
+}

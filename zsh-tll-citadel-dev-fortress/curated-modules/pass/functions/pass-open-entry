@@ -1,0 +1,18 @@
+# Print one pass entry to stdout.
+#
+# Arguments:
+#   $1 - pass entry name.
+# Returns:
+#   0 on success, non-zero on missing input or pass failure.
+# Side effects:
+#   Calls the pass CLI.
+pass-open-entry() {
+  local entry_name="${1:-}"
+
+  [[ -n "${entry_name}" ]] || {
+    print -u2 -- 'usage: pass-open-entry <entry>'
+    return 1
+  }
+
+  pass show "${entry_name}"
+}

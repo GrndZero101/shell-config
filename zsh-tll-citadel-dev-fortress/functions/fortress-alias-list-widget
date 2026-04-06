@@ -1,0 +1,13 @@
+# Launch the interactive alias inventory from zle.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after queuing the alias-list command, non-zero when the current buffer is not empty.
+# Side effects:
+#   Executes `alias-list -i` through the active command line.
+fortress-alias-list-widget() {
+  emulate -L zsh
+
+  fortress-zle-run-command 'alias-list -i'
+}

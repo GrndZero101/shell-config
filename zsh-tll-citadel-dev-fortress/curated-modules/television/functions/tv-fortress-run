@@ -1,0 +1,17 @@
+# Run television with the fortress-owned config and cable directory.
+#
+# Arguments:
+#   $@: Television arguments.
+# Returns:
+#   0 on success, non-zero if tv fails.
+tv-fortress-run() {
+  (( $+commands[tv] )) || {
+    print -u2 -- 'tv-fortress-run: tv is not installed or not yet on PATH'
+    return 1
+  }
+
+  tv \
+    --config-file "${ZDOTDIR}/curated-modules/television/config/config.toml" \
+    --cable-dir "${ZDOTDIR}/curated-modules/television/cable" \
+    "$@"
+}

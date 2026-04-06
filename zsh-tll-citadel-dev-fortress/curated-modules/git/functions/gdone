@@ -1,0 +1,159 @@
+# Clean up a merged branch locally and on origin.
+#
+# Arguments:
+#   $1: Branch name to delete after merge.
+#   --temp <branch>: Optional temporary branch to remove in the same pass.
+#   --force: Skip the interactive confirmation prompt.
+#   --keep-remote: Delete only the local branch and keep the origin branch.
+# Returns:
+#   0 when cleanup succeeds, otherwise non-zero.
+# Side effects:
+#   Reads git refs, may switch branches, deletes a local branch, and may delete
+#   the matching branch on origin.
+gdone() {
+  local target_branch=''
+  local temp_branch=''
+  local inferred_temp_branch=''
+  local force_mode=0
+  local keep_remote=0
+  local current_branch
+  local base_branch
+  local prompt_suffix=' [y/N] '
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --temp)
+        [[ $# -ge 2 ]] || { print -u2 -- 'usage: gdone <branch> [--temp <branch>] [--force] [--keep-remote]'; return 1; }
+        temp_branch=$2
+        shift 2
+        ;;
+      --force)
+        force_mode=1
+        shift
+        ;;
+      --keep-remote)
+        keep_remote=1
+        shift
+        ;;
+      --help|-h)
+        print -r -- 'usage: gdone <branch> [--temp <branch>] [--force] [--keep-remote]'
+        return 0
+        ;;
+      *)
+        [[ -z "${target_branch}" ]] || { print -u2 -- 'usage: gdone <branch> [--temp <branch>] [--force] [--keep-remote]'; return 1; }
+        target_branch=$1
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "${target_branch}" ]] || { print -u2 -- 'usage: gdone <branch> [--temp <branch>] [--force] [--keep-remote]'; return 1; }
+  command git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { print -u2 -- 'gdone: not inside a git repository'; return 1; }
+
+  if [[ -n "$(command git status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+    print -u2 -- 'gdone: worktree is not clean; commit or stash changes first'
+    return 1
+  fi
+
+  command git show-ref --verify --quiet "refs/heads/${target_branch}" || {
+    print -u2 -- "gdone: local branch does not exist: ${target_branch}"
+    return 1
+  }
+
+  if [[ -z "${temp_branch}" ]]; then
+    inferred_temp_branch="$(command git for-each-ref \
+      --count=1 \
+      --sort=-committerdate \
+      --format='%(refname:short)' \
+      "refs/heads/${target_branch}--wip-*" 2>/dev/null)"
+    if [[ -n "${inferred_temp_branch}" ]]; then
+      temp_branch=${inferred_temp_branch}
+    fi
+  fi
+
+  if [[ -n "${temp_branch}" ]]; then
+    command git show-ref --verify --quiet "refs/heads/${temp_branch}" || {
+      print -u2 -- "gdone: temp branch does not exist: ${temp_branch}"
+      return 1
+    }
+    [[ "${temp_branch}" != "${target_branch}" ]] || {
+      print -u2 -- 'gdone: temp branch must be different from the target branch'
+      return 1
+    }
+  fi
+
+  base_branch="$(git-primary-branch)" || return 1
+  [[ "${target_branch}" != "${base_branch}" ]] || {
+    print -u2 -- "gdone: refusing to delete the primary branch: ${base_branch}"
+    return 1
+  }
+  if [[ -n "${temp_branch}" && "${temp_branch}" == "${base_branch}" ]]; then
+    print -u2 -- "gdone: refusing to delete the primary branch as temp branch: ${base_branch}"
+    return 1
+  fi
+
+  if (( ! force_mode )); then
+    if [[ ! -t 0 ]]; then
+      print -u2 -- 'gdone: no interactive terminal available; rerun with --force for non-interactive use'
+      return 1
+    fi
+
+    print -r -- "gdone target branch: ${target_branch}"
+    if [[ -n "${temp_branch}" ]]; then
+      print -r -- "gdone temp branch: ${temp_branch}"
+    else
+      print -r -- 'gdone temp branch: none detected'
+    fi
+    if [[ "${keep_remote}" == '1' ]]; then
+      print -r -- 'gdone remote cleanup: disabled'
+    else
+      print -r -- 'gdone remote cleanup: enabled'
+    fi
+    printf '%s' "Proceed with branch cleanup?${prompt_suffix}"
+    local confirm_reply
+    read -r confirm_reply
+    [[ "${confirm_reply:l}" == 'y' || "${confirm_reply:l}" == 'yes' ]] || {
+      print -u2 -- 'gdone: cancelled'
+      return 1
+    }
+  fi
+
+  current_branch="$(command git branch --show-current 2>/dev/null)"
+  if [[ "${current_branch}" == "${target_branch}" || "${current_branch}" == "${temp_branch}" ]]; then
+    command git switch "${base_branch}" || return 1
+  fi
+
+  if ! command git merge-base --is-ancestor "${target_branch}" "${base_branch}"; then
+    print -u2 -- "gdone: branch is not merged into ${base_branch}: ${target_branch}"
+    return 1
+  fi
+
+  command git branch -d "${target_branch}" || return 1
+  print -r -- "gdone removed local branch: ${target_branch}"
+
+  if [[ "${keep_remote}" == '1' ]]; then
+    print -r -- "gdone kept remote branch: origin/${target_branch}"
+    return 0
+  fi
+
+  if command git show-ref --verify --quiet "refs/remotes/origin/${target_branch}"; then
+    command git push origin --delete "${target_branch}" || return 1
+    print -r -- "gdone removed remote branch: origin/${target_branch}"
+  else
+    print -r -- "gdone remote branch not found: origin/${target_branch}"
+  fi
+
+  if [[ -n "${temp_branch}" ]]; then
+    command git branch -D "${temp_branch}" || return 1
+    print -r -- "gdone removed temp branch: ${temp_branch}"
+
+    if [[ "${keep_remote}" == '1' ]]; then
+      print -r -- "gdone kept temp remote branch: origin/${temp_branch}"
+    elif command git show-ref --verify --quiet "refs/remotes/origin/${temp_branch}"; then
+      command git push origin --delete "${temp_branch}" || return 1
+      print -r -- "gdone removed temp remote branch: origin/${temp_branch}"
+    else
+      print -r -- "gdone temp remote branch not found: origin/${temp_branch}"
+    fi
+  fi
+}

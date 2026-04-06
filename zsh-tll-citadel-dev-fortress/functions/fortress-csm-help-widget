@@ -1,0 +1,13 @@
+# Launch csm help from zle.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after queuing the csm help command, non-zero when the current buffer is not empty.
+# Side effects:
+#   Executes `csm` through the active command line.
+fortress-csm-help-widget() {
+  emulate -L zsh
+
+  fortress-zle-run-command 'csm'
+}

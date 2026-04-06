@@ -17,13 +17,16 @@ It should feel capable, polished, and information-rich without becoming an opaqu
 
 - Preferred theme: Catppuccin Mocha
 - Font assumptions: Nerd Fonts are available
-- Prompt style: configurable between `oh-my-posh`, `starship`, and native fallback, with `auto` preferring `oh-my-posh` first; the fortress `oh-my-posh` theme should use `powerlevel10k_modern` as the structural base and Catppuccin Mocha as the palette
+- Prompt style: configurable between `starship` and native fallback, with `auto` preferring `starship` first; keep the prompt-engine loader structured so future engines can be reintroduced without rewriting the whole prompt file
 - Icon usage: icons are allowed when the terminal and font support them, but should not reduce clarity
 - Status surfaces such as `fortress-hud --pretty` may use Catppuccin-tinted headings and Nerd Font icons, but should keep the standard renderer as the operational source of truth
 
 ## Tooling Principles
 
 - Prefer tools that materially improve developer throughput and shell ergonomics.
+- Prefer eating our own dog food: when fortress provides a capable operator path,
+  use it to operate fortress-managed workflows rather than defaulting back to
+  manual shell sequences.
 - When a tool supports Catppuccin Mocha cleanly and without fragile setup, prefer enabling that theme.
 - Prefer official Catppuccin ports and guidance from the Catppuccin organization first:
   - use the Catppuccin ports index as the discovery source
@@ -33,11 +36,13 @@ It should feel capable, polished, and information-rich without becoming an opaqu
 - Favor graceful degradation when optional tools are missing.
 - Keep plugin adoption selective and value-driven.
 - Prefer a persistent, user-owned fortress settings file for default startup behavior instead of requiring login-time environment injection.
-- Treat prompt engine choice as a deliberate profile setting: `auto`, `oh-my-posh`, `starship`, and `native` should remain understandable and debuggable as explicit operating modes.
+- Prefer small XDG-local extension points for personal aliases, exports, functions, and optional tool modules before introducing heavier shared plugin or snippet systems.
+- Keep local tool modules close to native zsh patterns: modules should stay light and primarily wire aliases plus `autoload -Uz` for the real implementations that live in the user-local functions directory.
+- Treat prompt engine choice as a deliberate profile setting: `auto`, `starship`, and `native` should remain understandable and debuggable as explicit operating modes, while the prompt loader keeps simple scaffolding for future engines if one proves to be a better zsh fit later.
 - Use `zinit` as the fortress plugin manager, but keep installation explicit and profile-local.
 - Treat completion frontends as deliberate choices: native zsh, `fzf-tab`, and `zsh-autocomplete` should be understandable as separate operating modes rather than a pile-on stack.
 - Treat vi-mode as swappable: `zsh-vi-mode` is the current fortress default, while the native `bindkey -v` path remains available as a lower-complexity fallback.
-- Prefer low-drama comfort plugins first, such as autosuggestions and syntax highlighting, before adding larger OMZ plugin bundles.
+- Prefer low-drama comfort plugins first, such as autosuggestions and syntax highlighting, before adding larger plugin bundles.
 - When `zsh-vi-mode` is enabled, let it own vi-mode widgets and cursor behavior instead of layering fortress's native vi-mode hooks on top.
 - When `zsh-vi-mode` is enabled, skip `zsh-autocomplete` by default but allow an explicit experimental compatibility mode when both toggles are enabled.
 - Treat `zsh-vi-mode` plus `zsh-autocomplete` as an experimental pairing that requires eager vi-mode initialization and careful plugin ordering.
@@ -46,10 +51,17 @@ It should feel capable, polished, and information-rich without becoming an opaqu
 - Use a profile-local `ATUIN_CONFIG_DIR` and `ATUIN_THEME_DIR` together for fortress when Atuin is enabled; prioritize observed shell behavior over potentially misleading output from auxiliary Atuin info commands.
 - Keep fortress persistent settings outside the repo tree so a default clone at `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config` does not mix user preferences with tracked files.
 - When `zsh-autocomplete` is enabled, let it own `compinit` and primary completion flow instead of trying to blend it with `fzf-tab`.
-- When OMZ plugins are added, fortress may selectively override overlapping aliases, but those opinionated overrides can remain opt-in when the baseline OMZ behavior is valuable on its own.
-- Favor low-risk operator helpers like OMZ `sudo` when they improve muscle memory without adding much conceptual overhead.
-- Prefer lightweight utility plugins like OMZ `web-search` when they add capability without distorting core shell behavior.
-- Use command-aware OMZ plugins like `aws`, and completion-only OMZ assets like `pass`, when the underlying tool exists locally and the behavior is a net productivity gain.
+- Favor fortress-owned helpers like `sudo-command-line` and `web_search` when they improve muscle memory without hiding behavior inside third-party snippets.
+- Prefer replacing opaque snippet behavior with small native helpers or curated local modules under the user-owned fortress config tree rather than adding a new general package framework.
+- Use curated modules for heavier tool-specific integrations such as `aws`, `pass`, and `television` so operators can opt in selectively by environment.
+- Curated optional modules are acceptable when they install into the same user-owned local module and function directories as hand-written modules. Keep them small, tool-oriented, and easy to inspect.
+- Keep interactive CLI ergonomics compact and predictable: when a shell-management command supports `--interactive`, it should also accept `-i` as the short operator path while preserving a fully non-interactive default.
+- Favor a small multi-key operator namespace over scattered ad hoc hotkeys. Fortress currently uses `Ctrl-G` plus plain-letter or symbol follow-up keys as the shell-management prefix and should keep that chord space compact, memorable, and documented.
+- Keep the operator namespace data-driven. The binding registry should act as the single source of truth for the live `bindkey` wiring, cheat-sheet output, and HUD or debug summaries so the shortcut surface does not drift.
+- If a common operator workflow is still too manual, awkward, or error-prone,
+  treat that friction as a product signal to add or extend a fortress helper
+  rather than accepting the manual path as the steady state.
+- Future shell-management UI work may introduce `gum` as an optional polish layer for `csm` and curated-module workflows, but only after the CLI-first and `fzf`-based operator paths have clearly stabilized.
 
 ## Theme Implementation Policy
 
@@ -68,7 +80,7 @@ It should feel capable, polished, and information-rich without becoming an opaqu
 
 ## Carve Outs
 
-- This profile is allowed to use `oh-my-posh` and `starship` as richer prompt engines while keeping a native fallback path.
+- This profile is allowed to use `starship` as a richer prompt engine while keeping a native fallback path.
 - This profile is allowed to use a small `zinit` plugin layer when it adds clear operator value.
 - Catppuccin Mocha is a profile-level design preference, not a global repository requirement for every profile.
 

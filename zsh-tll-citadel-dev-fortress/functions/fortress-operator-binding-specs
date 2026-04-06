@@ -1,0 +1,20 @@
+# Print the fortress operator binding registry.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing tab-separated operator binding rows.
+# Side effects:
+#   Writes the current registry rows to stdout.
+fortress-operator-binding-specs() {
+  emulate -L zsh
+
+  print -r -- $'^Gh\tCtrl-G h\tfortress-keybinds-widget\tfortress-keybinds\tinstant keybind cheat sheet; requires an empty command line'
+  print -r -- $'^Gc\tCtrl-G c\tfortress-csm-widget\tcsm \tfortress operator prefix; safe to use mid-edit'
+  print -r -- $'^G?\tCtrl-G ?\tfortress-csm-help-widget\tcsm\trequires an empty command line to avoid clobbering typed input'
+  print -r -- $'^Gp\tCtrl-G p\tfortress-csm-select-widget\tcsm select -i\trequires an empty command line to avoid clobbering typed input'
+  print -r -- $'^Ga\tCtrl-G a\tfortress-alias-list-widget\talias-list -i\trequires an empty command line to avoid clobbering typed input'
+  print -r -- $'^Gf\tCtrl-G f\tfortress-alias-find-widget\talias-find \tfortress operator prefix; type a query after the chord'
+  print -r -- $'^Gu\tCtrl-G u\tfortress-hud-widget\tfortress-hud --pretty\trequires an empty command line to avoid clobbering typed input'
+  print -r -- $'^Gd\tCtrl-G d\tfortress-debug-interactive-widget\tfortress-debug-interactive\trequires an empty command line to avoid clobbering typed input'
+}

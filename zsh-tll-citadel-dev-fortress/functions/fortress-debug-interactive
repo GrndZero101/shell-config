@@ -24,6 +24,36 @@ fortress-debug-interactive-print-bool() {
   print -r -- "${label}: ${state}"
 }
 
+# Print module-resolution lines for the enabled fortress module set.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing the module state.
+fortress-debug-interactive-print-module-resolution() {
+  local module_name active_source local_path curated_path shadow_state
+
+  print -r -- '== Module Resolution =='
+  if (( ${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0} == 0 )); then
+    print -r -- 'enabled modules: none'
+    return 0
+  fi
+
+  print -r -- "enabled modules: ${(j:, :)SHELL_FORTRESS_LOCAL_MODULES}"
+  for module_name in "${SHELL_FORTRESS_LOCAL_MODULES[@]}"; do
+    active_source="${SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]-missing}"
+    local_path="${SHELL_FORTRESS_MODULE_LOCAL_PATHS[${module_name}]-absent}"
+    curated_path="${SHELL_FORTRESS_MODULE_CURATED_PATHS[${module_name}]-absent}"
+    shadow_state='no'
+    if [[ "${active_source}" == 'local-fork' ]]; then
+      shadow_state='curated'
+    fi
+    print -r -- "${module_name}: active=${active_source} shadowing=${shadow_state}"
+    print -r -- "  local_path: ${local_path}"
+    print -r -- "  curated_path: ${curated_path}"
+    print -r -- "  active_path: ${SHELL_FORTRESS_MODULE_ACTIVE_PATHS[${module_name}]-absent}"
+  done
+}
+
 # Print keybinding and widget state for fortress interactive plugins.
 # Arguments:
 #   None.
@@ -32,7 +62,10 @@ fortress-debug-interactive-print-bool() {
 # Side effects:
 #   Reads keymap, widget, and function state from the active interactive shell.
 fortress-debug-interactive() {
+  autoload -Uz fortress-operator-binding-specs
+
   local keymap
+  local key_sequence display_text widget_name action_text note_text
 
   print -r -- '== Fortress Interactive Debug =='
   print -r -- "profile: ${SHELL_PROFILE_NAME:-unknown}"
@@ -46,6 +79,9 @@ fortress-debug-interactive() {
   print -r -- "SHELL_FORTRESS_ENABLE_FZF_TAB=${SHELL_FORTRESS_ENABLE_FZF_TAB:-unset}"
   print -r -- "SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=${SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS:-unset}"
   print -r -- "SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE=${SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE:-unset}"
+
+  print -r -- ''
+  fortress-debug-interactive-print-module-resolution
 
   print -r -- ''
   print -r -- '== Functions =='
@@ -63,6 +99,8 @@ fortress-debug-interactive() {
   print -r -- ''
   print -r -- '== Widgets =='
   if zle -la >/dev/null 2>&1; then
+    print -r -- "zle-line-init owner: ${widgets[zle-line-init]:-unset}"
+    print -r -- "zle-line-finish owner: ${widgets[zle-line-finish]:-unset}"
     fortress-debug-interactive-print-bool 'fzf-file-widget' "$(( ${${(f)"$(zle -la)"}[(I)fzf-file-widget]} > 0 ))"
     fortress-debug-interactive-print-bool 'fzf-cd-widget' "$(( ${${(f)"$(zle -la)"}[(I)fzf-cd-widget]} > 0 ))"
     fortress-debug-interactive-print-bool 'zle-history-fzf' "$(( ${${(f)"$(zle -la)"}[(I)zle-history-fzf]} > 0 ))"
@@ -86,6 +124,10 @@ fortress-debug-interactive() {
     bindkey -M "${keymap}" '^[c' 2>/dev/null || print -r -- 'no binding'
     print -n -- 'ctrl-x ctrl-r: '
     bindkey -M "${keymap}" '^X^R' 2>/dev/null || print -r -- 'no binding'
+    while IFS=$'\t' read -r key_sequence display_text widget_name action_text note_text; do
+      print -n -- "${display_text:l}: "
+      bindkey -M "${keymap}" "${key_sequence}" 2>/dev/null || print -r -- 'no binding'
+    done < <(fortress-operator-binding-specs)
     print -n -- 'right-arrow: '
     bindkey -M "${keymap}" '^[[C' 2>/dev/null || print -r -- 'no binding'
     print -n -- 'alt-f: '

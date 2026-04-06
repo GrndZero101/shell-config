@@ -1,0 +1,18 @@
+# Switch the active kubectl context.
+#
+# Arguments:
+#   $1 - Context name.
+# Returns:
+#   0 on success, non-zero on missing input or kubectl failure.
+# Side effects:
+#   Calls the kubectl CLI and changes the active kubectl context.
+kubectl-use-context() {
+  local context_name="${1:-}"
+
+  [[ -n "${context_name}" ]] || {
+    print -u2 -- 'usage: kubectl-use-context <context>'
+    return 1
+  }
+
+  kubectl config use-context "${context_name}"
+}

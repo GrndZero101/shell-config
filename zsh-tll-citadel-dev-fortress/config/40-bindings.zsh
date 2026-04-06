@@ -1,12 +1,25 @@
 # Citadel line editor bindings and zle widgets.
 
 autoload -Uz \
+  fortress-debug-interactive-widget \
   fortress-hud \
+  fortress-hud-widget \
   fortress-debug-interactive \
+  fortress-alias-find-widget \
+  fortress-alias-list-widget \
+  fortress-csm-help-widget \
+  fortress-csm-select-widget \
+  fortress-csm-widget \
+  fortress-keybinds \
+  fortress-keybinds-widget \
+  fortress-operator-binding-specs \
+  fortress-zle-insert-command \
+  fortress-zle-run-command \
   fzf-cd-widget \
   fzf-find-dir \
   fzf-find-file \
   fzf-file-widget \
+  sudo-command-line \
   zle-history-fzf \
   zle-keymap-select \
   zle-line-finish \
@@ -27,6 +40,49 @@ fortress-apply-fzf-widget-bindings() {
   bindkey -M viins '^[c' fzf-cd-widget
   bindkey -M emacs '^X^R' zle-history-fzf
   bindkey -M viins '^X^R' zle-history-fzf
+}
+
+# Apply the fortress operator prefix bindings in the requested keymaps.
+# Arguments:
+#   None.
+# Returns:
+#   0 after binding the operator widgets.
+# Side effects:
+#   Updates multi-key operator shortcuts under the Ctrl-G prefix.
+fortress-apply-operator-bindings() {
+  local keymap binding_row key_sequence display_text widget_name action_text note_text
+  local -a binding_rows
+
+  binding_rows=(${(f)"$(fortress-operator-binding-specs)"})
+  for keymap in emacs viins vicmd; do
+    for binding_row in "${binding_rows[@]}"; do
+      IFS=$'\t' read -r key_sequence display_text widget_name action_text note_text <<< "${binding_row}"
+      bindkey -M "${keymap}" "${key_sequence}" "${widget_name}"
+    done
+  done
+}
+
+# Register the fortress operator widgets declared in the binding registry.
+# Arguments:
+#   None.
+# Returns:
+#   0 after registering the required widgets with zle.
+# Side effects:
+#   Calls zle -N for each unique operator widget in the registry.
+fortress-register-operator-widgets() {
+  local binding_row key_sequence display_text widget_name action_text note_text
+  local -a binding_rows widget_names
+
+  binding_rows=(${(f)"$(fortress-operator-binding-specs)"})
+  for binding_row in "${binding_rows[@]}"; do
+    IFS=$'\t' read -r key_sequence display_text widget_name action_text note_text <<< "${binding_row}"
+    widget_names+=("${widget_name}")
+  done
+
+  widget_names=(${(u)widget_names})
+  for widget_name in "${widget_names[@]}"; do
+    zle -N "${widget_name}"
+  done
 }
 
 # Apply fortress's preferred autocomplete bindings after the plugin loads.
@@ -116,6 +172,9 @@ else
   bindkey -v
 fi
 
+zle -N sudo-command-line
+fortress-register-operator-widgets
+
 bindkey '^A' beginning-of-line
 bindkey '^E' end-of-line
 bindkey '^[[A' up-line-or-search
@@ -127,6 +186,9 @@ bindkey '^N' down-line-or-search
 bindkey '^R' history-incremental-search-backward
 bindkey '^[[H' beginning-of-line
 bindkey '^[[F' end-of-line
+bindkey -M emacs '^[^[' sudo-command-line
+bindkey -M viins '^[^[' sudo-command-line
+fortress-apply-operator-bindings
 if (( ! SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE )); then
   bindkey -M emacs '^I' complete-word
   bindkey -M viins '^I' complete-word
@@ -162,4 +224,8 @@ if (( SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE )) && (( $+functions[zinit] )); then
 
   autoload -Uz _csm
   compdef _csm csm
+  if [[ -f "${SHELL_PROFILE_EXTERNAL_ZSH_COMPLETION_DIR}/_ft" ]] && [[ -z "${SHELL_PROFILE_FT_COMPLETION_LOADED:-}" ]]; then
+    source "${SHELL_PROFILE_EXTERNAL_ZSH_COMPLETION_DIR}/_ft"
+    typeset -g SHELL_PROFILE_FT_COMPLETION_LOADED=1
+  fi
 fi

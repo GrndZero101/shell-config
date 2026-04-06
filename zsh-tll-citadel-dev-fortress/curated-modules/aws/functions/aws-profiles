@@ -1,0 +1,11 @@
+# Print configured AWS profile names.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when the AWS CLI fails.
+# Side effects:
+#   Calls the AWS CLI.
+aws-profiles() {
+  aws configure list-profiles
+}

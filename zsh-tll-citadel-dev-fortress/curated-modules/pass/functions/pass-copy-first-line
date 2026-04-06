@@ -1,0 +1,18 @@
+# Copy the first line of a pass entry to the clipboard.
+#
+# Arguments:
+#   $1 - pass entry name.
+# Returns:
+#   0 on success, non-zero on missing input or pass failure.
+# Side effects:
+#   Calls the pass CLI.
+pass-copy-first-line() {
+  local entry_name="${1:-}"
+
+  [[ -n "${entry_name}" ]] || {
+    print -u2 -- 'usage: pass-copy-first-line <entry>'
+    return 1
+  }
+
+  pass show -c "${entry_name}"
+}

@@ -1,0 +1,11 @@
+# Print kubectl contexts in a compact table.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when kubectl is unavailable or the command fails.
+# Side effects:
+#   Calls the kubectl CLI.
+kubectl-contexts() {
+  kubectl config get-contexts
+}

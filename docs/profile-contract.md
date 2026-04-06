@@ -141,6 +141,18 @@ then history maps to:
 
 This is a profile policy choice, not a global hidden default.
 
+## Selector State
+
+The repo-level active profile selection is also runtime state.
+
+It should live at:
+
+`${XDG_STATE_HOME:-$HOME/.local/state}/shell-config/active-profile`
+
+This keeps the mutable profile-selection state out of the repository checkout
+when `shell-config` itself is installed under
+`${XDG_CONFIG_HOME:-$HOME/.config}/shell-config`.
+
 ## Why This Helps
 
 - keeps generated files out of the repo tree
@@ -158,6 +170,7 @@ The allowed shared carve-outs are intentionally narrow:
 
 `shared/completions` exists to avoid repeating the same completion definitions across multiple profiles.
 It should not become a general shared-function library.
+External CLI completions should be owned by the CLI that generates them and installed into an XDG-managed runtime path, with profiles only loading those paths when available.
 
 ## Plugin Manager Impact
 

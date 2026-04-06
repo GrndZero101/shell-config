@@ -107,6 +107,59 @@ fortress-hud-render-command() {
   fi
 }
 
+# Print the recorded or derived active source for one enabled module.
+# Arguments:
+#   $1: module name.
+# Returns:
+#   0 after printing the source label.
+fortress-hud-module-active-source() {
+  local module_name="$1"
+  local local_path="${SHELL_FORTRESS_MODULE_LOCAL_PATHS[${module_name}]-${SHELL_FORTRESS_MODULES_DIR:-}/${module_name}.zsh}"
+  local curated_path="${SHELL_FORTRESS_MODULE_CURATED_PATHS[${module_name}]-${ZDOTDIR:-}/curated-modules/${module_name}/module.zsh}"
+
+  if [[ -n "${SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]-}" ]]; then
+    print -r -- "${SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]}"
+    return 0
+  fi
+
+  if [[ -r "${local_path}" ]]; then
+    if [[ -r "${curated_path}" ]]; then
+      print -r -- 'local-fork'
+    else
+      print -r -- 'local-only'
+    fi
+    return 0
+  fi
+
+  if [[ -r "${curated_path}" ]]; then
+    print -r -- 'curated'
+    return 0
+  fi
+
+  print -r -- 'missing'
+}
+
+# Print one compact module-resolution summary line.
+# Arguments:
+#   $1: module name.
+# Returns:
+#   0 after printing the summary text.
+fortress-hud-module-summary() {
+  local module_name="$1"
+  local active_source local_path curated_path shadow_state
+
+  active_source="$(fortress-hud-module-active-source "${module_name}")"
+  local_path="${SHELL_FORTRESS_MODULE_LOCAL_PATHS[${module_name}]-${SHELL_FORTRESS_MODULES_DIR:-}/${module_name}.zsh}"
+  curated_path="${SHELL_FORTRESS_MODULE_CURATED_PATHS[${module_name}]-${ZDOTDIR:-}/curated-modules/${module_name}/module.zsh}"
+  shadow_state='no'
+
+  if [[ "${active_source}" == 'local-fork' ]]; then
+    shadow_state='curated'
+  fi
+
+  print -r -- "active=${active_source} shadowing=${shadow_state} local=$([[ -r "${local_path}" ]] && print -r -- present || print -r -- absent) curated=$([[ -r "${curated_path}" ]] && print -r -- present || print -r -- absent)"
+}
+
 # Print a renderer-aware section heading.
 # Arguments:
 #   $1: renderer mode, standard or pretty.
@@ -294,6 +347,7 @@ fortress-hud-print-pretty-env-table() {
     "savehist|SAVEHIST|SHELL_FORTRESS_SETTING_SAVEHIST|SHELL_FORTRESS_RAW_ENV_SAVEHIST|SHELL_FORTRESS_RAW_SETTING_SAVEHIST|${SAVEHIST:-unset}|${SHELL_FORTRESS_SOURCE_SAVEHIST:-default}"
     "keytimeout|KEYTIMEOUT|SHELL_FORTRESS_SETTING_KEYTIMEOUT|SHELL_FORTRESS_RAW_ENV_KEYTIMEOUT|SHELL_FORTRESS_RAW_SETTING_KEYTIMEOUT|${KEYTIMEOUT:-unset}|${SHELL_FORTRESS_SOURCE_KEYTIMEOUT:-default}"
     "prompt_engine|SHELL_FORTRESS_PROMPT_ENGINE|SHELL_FORTRESS_SETTING_PROMPT_ENGINE|SHELL_FORTRESS_RAW_ENV_PROMPT_ENGINE|SHELL_FORTRESS_RAW_SETTING_PROMPT_ENGINE|${SHELL_FORTRESS_ACTIVE_PROMPT_ENGINE:-unset}|${SHELL_FORTRESS_SOURCE_PROMPT_ENGINE:-default}"
+    "editor|EDITOR|SHELL_FORTRESS_SETTING_EDITOR|SHELL_FORTRESS_RAW_ENV_EDITOR|SHELL_FORTRESS_RAW_SETTING_EDITOR|${EDITOR:-unset}|${SHELL_FORTRESS_SOURCE_EDITOR:-default}"
   )
 
   for row in "${rows[@]}"; do
@@ -376,6 +430,8 @@ fortress-hud-container-state() {
 # Side effects:
 #   Reads shell state, zle state, zstyles, and command availability.
 fortress-hud() {
+  autoload -Uz fortress-operator-binding-specs
+
   local render_mode='standard'
   local show_env_section=0
   local runtime_context='local'
@@ -391,9 +447,13 @@ fortress-hud() {
   local current_line
   local source_label
   local value_label
+  local local_modules_value='none'
+  local operator_shortcuts_value=''
   local settings_file_exists=0
   local zinit_repo_ready=0
   local arg
+  local key_sequence display_text widget_name action_text note_text
+  local module_name module_summary_text
 
   for arg in "$@"; do
     case "${arg}" in
@@ -430,6 +490,10 @@ fortress-hud() {
     runtime_context="${runtime_context}+interactive"
   fi
 
+  if (( ${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0} )); then
+    local_modules_value="${(j:, :)SHELL_FORTRESS_LOCAL_MODULES}"
+  fi
+
   if [[ -n "${KEYMAP:-}" ]]; then
     keymap_value="${KEYMAP}"
   fi
@@ -437,6 +501,14 @@ fortress-hud() {
   if (( $+functions[compinit] )); then
     compinit_loaded=1
   fi
+
+  while IFS=$'\t' read -r key_sequence display_text widget_name action_text note_text; do
+    if [[ -n "${operator_shortcuts_value}" ]]; then
+      operator_shortcuts_value+=", "
+    fi
+    operator_shortcuts_value+="${key_sequence} ${action_text}"
+  done < <(fortress-operator-binding-specs)
+
   if (( $+functions[zinit] )); then
     zinit_loaded=1
   fi
@@ -500,6 +572,7 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" settings 'settings_template' "${SHELL_FORTRESS_SETTINGS_TEMPLATE:-unset}"
   fortress-hud-line "${render_mode}" settings 'prompt_engine_configured' "${SHELL_FORTRESS_CONFIGURED_PROMPT_ENGINE:-unset} (source=${SHELL_FORTRESS_SOURCE_PROMPT_ENGINE:-default})"
   fortress-hud-line "${render_mode}" settings 'prompt_engine_resolved' "${SHELL_FORTRESS_ACTIVE_PROMPT_ENGINE:-unset}"
+  fortress-hud-line "${render_mode}" settings 'editor' "${EDITOR:-unset} (source=${SHELL_FORTRESS_SOURCE_EDITOR:-default})"
 
   source_label="${SHELL_FORTRESS_SOURCE_ENABLE_NATIVE_GIT:-default}"
   value_label="$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_NATIVE_GIT:-0}")"
@@ -537,8 +610,21 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" features 'vi_autocomplete_compat' "$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_ENABLE_ZSH_VI_AUTOCOMPLETE_COMPAT:-0}")"
   fortress-hud-line "${render_mode}" features 'autocomplete_loaded' "$(fortress-hud-render-bool "${render_mode}" "${SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE:-0}")"
   fortress-hud-line "${render_mode}" features 'prompt_mode' "${SHELL_PROMPT_MODE:-unset}"
+  fortress-hud-line "${render_mode}" features 'local_modules' "${local_modules_value}"
   fortress-hud-line "${render_mode}" features 'atuin_config_dir' "${ATUIN_CONFIG_DIR:-unset}"
   fortress-hud-line "${render_mode}" features 'atuin_theme_dir' "${ATUIN_THEME_DIR:-unset}"
+  fortress-hud-blank
+
+  fortress-hud-section "${render_mode}" module_resolution '󰈔' 'Module Resolution'
+  fortress-hud-line "${render_mode}" module_resolution 'enabled_count' "${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0}"
+  if (( ${#SHELL_FORTRESS_LOCAL_MODULES[@]:-0} )); then
+    for module_name in "${SHELL_FORTRESS_LOCAL_MODULES[@]}"; do
+      module_summary_text="$(fortress-hud-module-summary "${module_name}")"
+      fortress-hud-line "${render_mode}" module_resolution "${module_name}" "${module_summary_text}"
+    done
+  else
+    fortress-hud-line "${render_mode}" module_resolution 'modules' 'none'
+  fi
   fortress-hud-blank
 
   fortress-hud-section "${render_mode}" tools '󰈔' 'Tools'
@@ -546,7 +632,6 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" tools 'zinit_repo' "$(fortress-hud-render-bool "${render_mode}" "${zinit_repo_ready}")"
   fortress-hud-line "${render_mode}" tools 'fzf' "$(fortress-hud-render-command "${render_mode}" fzf)"
   fortress-hud-line "${render_mode}" tools 'atuin' "$(fortress-hud-render-command "${render_mode}" atuin)"
-  fortress-hud-line "${render_mode}" tools 'oh-my-posh' "$(fortress-hud-render-command "${render_mode}" oh-my-posh)"
   fortress-hud-line "${render_mode}" tools 'starship' "$(fortress-hud-render-command "${render_mode}" starship)"
   fortress-hud-line "${render_mode}" tools 'eza' "$(fortress-hud-render-command "${render_mode}" eza)"
   fortress-hud-line "${render_mode}" tools 'zoxide' "$(fortress-hud-render-command "${render_mode}" zoxide)"
@@ -562,6 +647,8 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" runtime 'zsh_vi_mode_loaded' "$(fortress-hud-render-bool "${render_mode}" "${zvm_loaded}")"
   fortress-hud-line "${render_mode}" runtime 'atuin_initialized' "$(fortress-hud-render-bool "${render_mode}" "${atuin_initialized}")"
   fortress-hud-line "${render_mode}" runtime 'active_tab_widget' "${active_tab_widget}"
+  fortress-hud-line "${render_mode}" runtime 'operator_prefix' 'Ctrl-G'
+  fortress-hud-line "${render_mode}" runtime 'operator_shortcuts' "${operator_shortcuts_value}"
   fortress-hud-blank
 
   fortress-hud-section "${render_mode}" paths '󰉋' 'Paths'
@@ -570,6 +657,11 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" paths 'cache_dir' "${SHELL_PROFILE_CACHE_DIR:-unset}"
   fortress-hud-line "${render_mode}" paths 'data_dir' "${SHELL_PROFILE_DATA_DIR:-unset}"
   fortress-hud-line "${render_mode}" paths 'runtime_dir' "${SHELL_PROFILE_RUNTIME_DIR:-unset}"
+  fortress-hud-line "${render_mode}" paths 'user_config_dir' "${SHELL_FORTRESS_USER_CONFIG_DIR:-unset}"
+  fortress-hud-line "${render_mode}" paths 'env_file' "${SHELL_FORTRESS_ENV_FILE:-unset}"
+  fortress-hud-line "${render_mode}" paths 'aliases_file' "${SHELL_FORTRESS_ALIASES_FILE:-unset}"
+  fortress-hud-line "${render_mode}" paths 'functions_dir' "${SHELL_FORTRESS_FUNCTIONS_DIR:-unset}"
+  fortress-hud-line "${render_mode}" paths 'modules_dir' "${SHELL_FORTRESS_MODULES_DIR:-unset}"
   fortress-hud-line "${render_mode}" paths 'zinit_root' "${SHELL_PROFILE_ZINIT_ROOT:-unset}"
   fortress-hud-line "${render_mode}" paths 'zinit_home' "${SHELL_PROFILE_ZINIT_HOME:-unset}"
 

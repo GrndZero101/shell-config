@@ -1,0 +1,30 @@
+# Print the fortress keybinding cheat sheet.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing the keybinding summary.
+# Side effects:
+#   Writes a compact operator-facing keybinding table to stdout.
+fortress-keybinds() {
+  emulate -L zsh
+
+  autoload -Uz fortress-operator-binding-specs
+
+  local key_sequence display_text widget_name action_text note_text
+
+  print -P -- "%F{81}%B󰌌 Fortress Keybinds%b%f"
+  print -P -- "%F{244}key             action                 notes%f"
+  print -r -- "Ctrl-A          beginning-of-line      explicit fortress bind"
+  print -r -- "Ctrl-E          end-of-line            explicit fortress bind"
+  print -r -- "Ctrl-P          history prefix back    typed-prefix friendly"
+  print -r -- "Ctrl-N          history prefix next    typed-prefix friendly"
+  print -r -- "Ctrl-R          history search         native incremental search"
+  print -r -- "Ctrl-T          file picker            requires fzf"
+  print -r -- "Alt-C           directory picker       requires fzf"
+  print -r -- "Ctrl-X Ctrl-R   history picker         requires fzf"
+  print -r -- "Esc Esc         prepend sudo           native fortress widget"
+  while IFS=$'\t' read -r key_sequence display_text widget_name action_text note_text; do
+    printf '%-16s %-22s %s\n' "${display_text}" "${action_text}" "${note_text}"
+  done < <(fortress-operator-binding-specs)
+}

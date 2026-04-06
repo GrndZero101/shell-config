@@ -10,6 +10,8 @@
 
 * Make use of Github / Gitlab admonitions callouts where it makes sense (e.g. carve outs / exceptions)
 * Make use of emoticons that are supported by Github / Gitlab where it makes sense but maintain conciseness.
+* `docs/ROADMAP.md` is the strategy and milestone-ordering document for this repository.
+* `docs/milestones/` is the execution-planning surface for active and draft milestone work.
 * Each profile should have its own `USAGE.md` and the operational truth for profile behavior should live there rather than only in top-level docs.
 * Each profile should also have its own `DESIGN.md` for design intent, visual direction, prompt strategy, and profile-specific philosophy.
 * Profile usage documents should follow the shared template at `docs/templates/profile-usage-template.md`.
@@ -19,6 +21,7 @@
 * When a profile exposes a HUD or status surface, update the profile's `USAGE.md` whenever its sections, flags, renderer modes, or expected debugging workflow change.
 * For profiles that adopt Catppuccin, prefer official Catppuccin ports and use the tool's native theming mechanism where possible. Vendor exact upstream assets when practical, and avoid ad hoc theme rewrites when an official port exists.
 * Keep top-level docs high-level and comparative. Keep per-profile docs concrete and operational.
+* When milestone or roadmap work changes, update `docs/ROADMAP.md` and the matching file under `docs/milestones/` in the same pass.
 
 # Shell implementation
 
@@ -47,3 +50,9 @@
 
 * Please develop a source based zsh script to bootstrap as `.zshenv` ultimately needs to be placed in the user's `$HOME` directory.
 * The project will be cloned usually into `$HOME/.config/shell-config` following XDG standards but it should allow for user customization if they want to change location during deployment.
+
+# Dogfooding
+
+* Prefer using the shell helpers, workflows, and operator surfaces from this repository to develop and operate the repository itself whenever those capabilities already exist.
+* If a workflow still requires a taxing manual sequence, treat that as a feature gap and suggest it as a candidate milestone or extension in the relevant roadmap/planning docs.
+* For shell startup, module-loading, keybinding, or profile-behavior debugging, use the established operator and debug surfaces first before ad hoc probing. Start with `fortress-hud`, `fortress-debug-interactive`, `csm list-modules`, and `csm describe-module <name>` unless there is a clear reason they are insufficient.

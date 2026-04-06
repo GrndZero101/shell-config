@@ -1,0 +1,11 @@
+# Print the current AWS account ID.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when the CLI call fails.
+# Side effects:
+#   Calls the AWS CLI.
+aws-account-id() {
+  aws sts get-caller-identity --query Account --output text
+}

@@ -1,0 +1,13 @@
+# Insert the alias-find command prefix into the active command line.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after inserting the command prefix.
+# Side effects:
+#   Mutates LBUFFER in the active zle widget context.
+fortress-alias-find-widget() {
+  emulate -L zsh
+
+  fortress-zle-insert-command 'alias-find '
+}

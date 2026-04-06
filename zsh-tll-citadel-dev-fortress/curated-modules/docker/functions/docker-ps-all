@@ -1,0 +1,11 @@
+# Print all Docker containers in a compact table.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 on success, non-zero when Docker is unavailable or the command fails.
+# Side effects:
+#   Calls the Docker CLI.
+docker-ps-all() {
+  docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+}

@@ -1,0 +1,19 @@
+# Start an AWS SSO or CLI login flow for one profile.
+#
+# Arguments:
+#   $1 - Optional profile name. Falls back to AWS_PROFILE when omitted.
+# Returns:
+#   0 on success, non-zero on missing profile or AWS CLI failure.
+# Side effects:
+#   Calls the AWS CLI login flow for the selected profile.
+aws-login() {
+  local profile_name="${1:-${AWS_PROFILE:-}}"
+
+  [[ -n "${profile_name}" ]] || {
+    print -u2 -- 'usage: aws-login <profile>'
+    print -u2 -- 'aws-login: pass a profile or set AWS_PROFILE first'
+    return 1
+  }
+
+  aws sso login --profile "${profile_name}"
+}

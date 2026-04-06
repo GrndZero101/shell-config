@@ -1,0 +1,28 @@
+# Print the repository's primary branch name.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing a branch name when one can be inferred, otherwise 1.
+# Side effects:
+#   Reads git refs from the current repository.
+git-primary-branch() {
+  local remote_head_ref
+  local branch_name
+
+  remote_head_ref="$(command git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || remote_head_ref=''
+  if [[ -n "${remote_head_ref}" ]]; then
+    print -r -- "${remote_head_ref#origin/}"
+    return 0
+  fi
+
+  for branch_name in main master trunk develop; do
+    if command git show-ref --verify --quiet "refs/heads/${branch_name}"; then
+      print -r -- "${branch_name}"
+      return 0
+    fi
+  done
+
+  print -u2 -- 'git-primary-branch: unable to determine the primary branch'
+  return 1
+}

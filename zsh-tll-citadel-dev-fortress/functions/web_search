@@ -1,0 +1,70 @@
+# Search the web with fortress-managed engines.
+#
+# Arguments:
+#   $1 - Optional search engine name. Falls back to google when omitted.
+#   $@ - Search terms.
+# Returns:
+#   0 on success, non-zero on invalid usage, unknown engine, or open failure.
+# Side effects:
+#   Opens the resolved search URL with the host platform opener.
+web_search() {
+  emulate -L zsh
+
+  local requested_engine="${1:-}"
+  local engine_name engine_url encoded_query
+  local default_engine='google'
+  local query_text
+  local -a engine_pairs engine_names
+  integer index
+
+  engine_pairs=("${ZSH_WEB_SEARCH_ENGINES[@]}")
+
+  if (( ${#engine_pairs[@]} == 0 )); then
+    print -u2 -- 'web_search: no search engines are configured'
+    return 1
+  fi
+
+  for (( index = 1; index <= ${#engine_pairs[@]}; index += 2 )); do
+    engine_names+=("${engine_pairs[index]}")
+  done
+
+  if [[ -z "${requested_engine}" || "${requested_engine}" == '--help' || "${requested_engine}" == '-h' ]]; then
+    print -u2 -- "usage: web_search [engine] <query>"
+    print -u2 -- "web_search: available engines: ${(j:, :)engine_names}"
+    return 1
+  fi
+
+  if [[ "${requested_engine}" == '--list-engines' ]]; then
+    print -r -l -- "${engine_names[@]}"
+    return 0
+  fi
+
+  engine_name="${default_engine}"
+  if (( ${engine_names[(Ie)${requested_engine}]} )); then
+    engine_name="${requested_engine}"
+    shift
+  fi
+
+  query_text="${(j: :)@}"
+  if [[ -z "${query_text}" ]]; then
+    print -u2 -- "web_search: query is required"
+    return 1
+  fi
+
+  engine_url=''
+  for (( index = 1; index <= ${#engine_pairs[@]}; index += 2 )); do
+    if [[ "${engine_pairs[index]}" == "${engine_name}" ]]; then
+      engine_url="${engine_pairs[index + 1]}"
+      break
+    fi
+  done
+
+  if [[ -z "${engine_url}" ]]; then
+    print -u2 -- "web_search: unknown engine '${engine_name}'"
+    print -u2 -- "web_search: available engines: ${(j:, :)engine_names}"
+    return 1
+  fi
+
+  encoded_query="$(omz_urlencode "${query_text}")" || return 1
+  open_command "${engine_url}${encoded_query}"
+}

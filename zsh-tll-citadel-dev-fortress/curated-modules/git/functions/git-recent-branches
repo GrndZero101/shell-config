@@ -1,0 +1,15 @@
+# Print recently updated local branches.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing branch names.
+# Side effects:
+#   Reads local branch refs from the current repository.
+git-recent-branches() {
+  command git for-each-ref \
+    --count=15 \
+    --sort=-committerdate \
+    --format='%(refname:short)' \
+    refs/heads
+}

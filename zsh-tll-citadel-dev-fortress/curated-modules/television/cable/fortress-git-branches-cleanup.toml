@@ -1,0 +1,32 @@
+[metadata]
+name = "fortress-git-branches-cleanup"
+description = "Review cleanup-safe git branches with a fortress-owned Television channel.\n\nThis channel only lists actionable cleanup candidates.\nPress `ctrl-r` to reload branch state."
+requirements = ["git"]
+
+[source]
+command = "${ZDOTDIR}/curated-modules/television/scripts/git-branches-channel.zsh cleanup-source"
+display = "{0} [{1}] [{2}] [{3}]"
+output = "{0}"
+
+[preview]
+command = "${ZDOTDIR}/curated-modules/television/scripts/git-branches-channel.zsh preview {0}"
+
+[ui]
+layout = "portrait"
+
+[ui.preview_panel]
+size = 62
+header = "{0}"
+footer = "{1} / {2} / {3}"
+
+[input]
+prompt = "cleanup> "
+header = "fortress branch cleanup"
+
+[keybindings]
+ctrl-k = "actions:cleanup"
+
+[actions.cleanup]
+description = "Run fortress cleanup logic for the selected branch"
+command = "${ZDOTDIR}/curated-modules/television/scripts/git-branch-action.zsh cleanup '{0}'"
+mode = "execute"

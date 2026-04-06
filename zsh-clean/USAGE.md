@@ -6,6 +6,8 @@ It keeps the shell understandable and close to stock zsh while still adding prac
 > [!NOTE]
 > This profile avoids external plugin dependencies.
 > It is the best baseline if you want a solid shell without a lot of moving parts.
+> It is also the recommended first validation profile on a new host before
+> moving up to `zsh-tll-citadel-dev-fortress`.
 
 ## Identity
 
@@ -71,6 +73,12 @@ This profile keeps aliases intentionally light.
 | --- | --- |
 | `brew` | `brew shellenv` is evaluated when Homebrew is discoverable on `PATH` |
 | `rg` | useful for inspecting bindings and history, but not directly configured as an alias |
+
+## Host Expectations
+
+- Linux and WSL2 are the strongest currently exercised environments
+- macOS is expected to work well here once basic host validation is done
+- this profile is intentionally the safest first checkpoint on a new platform because it avoids the larger optional-tool and module surface
 
 ## Profile Switching
 
