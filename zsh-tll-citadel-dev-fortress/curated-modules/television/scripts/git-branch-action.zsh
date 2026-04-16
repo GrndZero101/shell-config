@@ -50,12 +50,12 @@ main() {
       ;;
     cleanup)
       if [[ "${branch_name}" == *--wip-* ]]; then
-        greframe-rollback "${branch_name}"
+        gbm clean "${branch_name}" --apply --force --keep-remote
         return 0
       fi
 
       if command git merge-base --is-ancestor "${branch_name}" "${base_branch}"; then
-        gdone "${branch_name}" --force --keep-remote
+        gbm clean "${branch_name}" --apply --force --keep-remote
         return 0
       fi
 

@@ -56,6 +56,30 @@ fortress-debug-interactive-print-module-resolution() {
   done
 }
 
+# Print current branch lifecycle state when gbm is available.
+fortress-debug-interactive-print-branch-lifecycle() {
+  local current_branch=''
+
+  print -r -- '== Branch Lifecycle =='
+  if (( ! $+commands[git] )); then
+    print -r -- 'git: missing'
+    return 0
+  fi
+
+  if ! command git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    print -r -- 'repo: not inside a git repository'
+    return 0
+  fi
+
+  current_branch="$(command git branch --show-current 2>/dev/null)"
+  print -r -- "current_branch: ${current_branch:-detached}"
+  if (( $+functions[gbm] )); then
+    gbm status "${current_branch:-}" 2>/dev/null || print -r -- 'gbm status: unavailable'
+  else
+    print -r -- 'gbm: unavailable'
+  fi
+}
+
 # Print keybinding and widget state for fortress interactive plugins.
 # Arguments:
 #   None.
@@ -86,8 +110,12 @@ fortress-debug-interactive() {
   fortress-debug-interactive-print-module-resolution
 
   print -r -- ''
+  fortress-debug-interactive-print-branch-lifecycle
+
+  print -r -- ''
   print -r -- '== Functions =='
   fortress-debug-interactive-print-bool 'zinit' "$(( $+functions[zinit] ))"
+  fortress-debug-interactive-print-bool 'gbm' "$(( $+functions[gbm] ))"
   fortress-debug-interactive-print-bool 'enable-fzf-tab' "$(( $+functions[enable-fzf-tab] ))"
   fortress-debug-interactive-print-bool '_ftb__main_complete' "$(( $+functions[_ftb__main_complete] ))"
   fortress-debug-interactive-print-bool '.autocomplete__main' "$(( $+functions[.autocomplete__main] ))"

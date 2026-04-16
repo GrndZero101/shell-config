@@ -91,3 +91,71 @@ assert_path_not_exists() {
   local path="$1"
   [[ ! -e "$path" ]] || fail "expected path to be absent: $path"
 }
+
+setup_git_rewrite_repo() {
+  export TEST_GIT_REMOTE="$TEST_ROOT/remote.git"
+  export TEST_GIT_REPO="$TEST_ROOT/repo"
+
+  git init --bare "$TEST_GIT_REMOTE"
+  git clone "$TEST_GIT_REMOTE" "$TEST_GIT_REPO"
+  git -C "$TEST_GIT_REPO" config user.name "Shell Config Test"
+  git -C "$TEST_GIT_REPO" config user.email "shell-config@example.test"
+  git -C "$TEST_GIT_REPO" checkout -b main
+  printf 'base\n' > "$TEST_GIT_REPO/README.md"
+  git -C "$TEST_GIT_REPO" add README.md
+  git -C "$TEST_GIT_REPO" commit -m "chore: initial commit"
+  git -C "$TEST_GIT_REMOTE" symbolic-ref HEAD refs/heads/main
+  git -C "$TEST_GIT_REPO" push -u origin main
+}
+
+seed_published_feature_branch() {
+  local branch_name="$1"
+
+  git -C "$TEST_GIT_REPO" checkout -b "$branch_name"
+  printf 'feature one\n' >> "$TEST_GIT_REPO/README.md"
+  git -C "$TEST_GIT_REPO" add README.md
+  git -C "$TEST_GIT_REPO" commit -m "feat: first branch commit"
+  printf 'feature two\n' >> "$TEST_GIT_REPO/README.md"
+  git -C "$TEST_GIT_REPO" add README.md
+  git -C "$TEST_GIT_REPO" commit -m "feat: second branch commit"
+  git -C "$TEST_GIT_REPO" push -u origin "$branch_name"
+}
+
+run_fortress_git_module_in_repo() {
+  local repo_path="$1"
+  local command_string="$2"
+  local repo_root
+  local git_module_root
+
+  repo_root="$(shell_config_repo_root)"
+  git_module_root="$repo_root/zsh-tll-citadel-dev-fortress/curated-modules/git"
+
+  run env \
+    HOME="$HOME" \
+    XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+    XDG_STATE_HOME="$XDG_STATE_HOME" \
+    XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    XDG_DATA_HOME="$XDG_DATA_HOME" \
+    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    /bin/zsh -lc "fpath=(\"$git_module_root/functions\" \$fpath); source \"$git_module_root/module.zsh\"; cd \"$repo_path\"; $command_string"
+}
+
+run_fortress_sourced_in_repo() {
+  local repo_path="$1"
+  local source_files="$2"
+  local command_string="$3"
+  local repo_root
+  local git_module_root
+
+  repo_root="$(shell_config_repo_root)"
+  git_module_root="$repo_root/zsh-tll-citadel-dev-fortress/curated-modules/git"
+
+  run env \
+    HOME="$HOME" \
+    XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+    XDG_STATE_HOME="$XDG_STATE_HOME" \
+    XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    XDG_DATA_HOME="$XDG_DATA_HOME" \
+    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    /bin/zsh -lc "fpath=(\"$git_module_root/functions\" \$fpath); source \"$git_module_root/module.zsh\"; cd \"$repo_path\"; ${source_files}; $command_string"
+}

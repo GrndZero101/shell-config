@@ -170,20 +170,16 @@ tv-git-branches-cleanup() {
     case "${action}" in
       merged)
         if (( keep_remote )); then
-          gdone "${target_branch}" --force --keep-remote || return 1
+          gbm clean "${target_branch}" --apply --force --keep-remote || return 1
         else
-          gdone "${target_branch}" --force || return 1
+          gbm clean "${target_branch}" --apply --force || return 1
         fi
         ;;
       temp)
-        greframe-rollback "${target_branch}" || return 1
         if (( keep_remote )); then
-          print -r -- "tv-git-branches-cleanup kept temp remote branch: origin/${target_branch}"
-        elif command git show-ref --verify --quiet "refs/remotes/origin/${target_branch}"; then
-          command git push origin --delete "${target_branch}" || return 1
-          print -r -- "tv-git-branches-cleanup removed temp remote branch: origin/${target_branch}"
+          gbm clean "${target_branch}" --apply --force --keep-remote || return 1
         else
-          print -r -- "tv-git-branches-cleanup temp remote branch not found: origin/${target_branch}"
+          gbm clean "${target_branch}" --apply --force || return 1
         fi
         ;;
       squash)

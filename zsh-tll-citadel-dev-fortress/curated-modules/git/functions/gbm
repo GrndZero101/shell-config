@@ -1,0 +1,690 @@
+# Manage fortress git branch workflows through one entrypoint.
+#
+# Commands:
+#   start <final-branch>
+#   rewrite [final-branch] [--from <source-branch>] [--message <title>] [--publish] [--land] [--drop-source]
+#   finish [final-branch] [--from <temp-branch>] [--message <title>] [--publish] [--land] [--drop-source]
+#   publish [final-branch]
+#   land <final-branch> [--publish]
+#   close <final-branch> [--force] [--keep-remote]
+#   clean [branch ...] [--apply] [--force] [--keep-remote]
+#   list
+#   status [branch]
+gbm() {
+  emulate -L zsh
+
+  local subcommand="${1:-}"
+  shift || true
+
+  gbm::usage() {
+    print -u2 -- 'usage: gbm <start|rewrite|finish|publish|land|close|clean|list|status> [...]'
+  }
+
+  gbm::fail() {
+    print -u2 -- "gbm: $1"
+    return 1
+  }
+
+  gbm::delete_branch() {
+    local branch_name=$1
+    local keep_remote=${2:-0}
+    local mode=${3:-safe}
+    local remote_label=${4:-branch}
+
+    command git show-ref --verify --quiet "refs/heads/${branch_name}" || return 0
+
+    if [[ "$(command git branch --show-current 2>/dev/null)" == "${branch_name}" ]]; then
+      command git switch "$(git-reframe-primary-branch)" >/dev/null 2>&1 || return 1
+    fi
+
+    if [[ "${mode}" == 'force' ]]; then
+      command git branch -D "${branch_name}" >/dev/null 2>&1 || return 1
+    else
+      command git branch -d "${branch_name}" >/dev/null 2>&1 || return 1
+    fi
+    print -r -- "gbm removed local branch: ${branch_name}"
+
+    if (( keep_remote )); then
+      print -r -- "gbm kept remote ${remote_label}: origin/${branch_name}"
+      return 0
+    fi
+
+    if git-reframe-remote-branch-exists "${branch_name}"; then
+      command git push origin --delete "${branch_name}" >/dev/null 2>&1 || return 1
+      print -r -- "gbm removed remote ${remote_label}: origin/${branch_name}"
+    else
+      print -r -- "gbm remote ${remote_label} not found: origin/${branch_name}"
+    fi
+  }
+
+  gbm::cleanup_temp_branch() {
+    local branch_name=$1
+    local keep_remote=${2:-0}
+
+    command git show-ref --verify --quiet "refs/heads/${branch_name}" || return 0
+
+    if [[ "$(command git branch --show-current 2>/dev/null)" == "${branch_name}" ]]; then
+      command git switch "$(git-reframe-primary-branch)" >/dev/null 2>&1 || return 1
+    fi
+
+    git-reframe-clear-metadata "${branch_name}"
+    command git branch -D "${branch_name}" >/dev/null 2>&1 || return 1
+    print -r -- "gbm removed temp branch: ${branch_name}"
+
+    if (( keep_remote )); then
+      print -r -- "gbm kept remote temp branch: origin/${branch_name}"
+    elif git-reframe-remote-branch-exists "${branch_name}"; then
+      command git push origin --delete "${branch_name}" >/dev/null 2>&1 || return 1
+      print -r -- "gbm removed remote temp branch: origin/${branch_name}"
+    else
+      print -r -- "gbm remote temp branch not found: origin/${branch_name}"
+    fi
+  }
+
+  gbm::cleanup_source_branch() {
+    local branch_name=$1
+    local keep_remote=${2:-0}
+
+    gbm::delete_branch "${branch_name}" "${keep_remote}" force 'source branch'
+  }
+
+  gbm::publish_hint() {
+    local final_branch=$1
+
+    if git-reframe-remote-branch-exists "${final_branch}"; then
+      print -r -- "gbm publish: git push --force-with-lease -u origin ${final_branch}"
+    else
+      print -r -- "gbm publish: git push -u origin ${final_branch}"
+    fi
+  }
+
+  gbm::publish_branch() {
+    local final_branch=$1
+
+    if git-reframe-remote-branch-exists "${final_branch}"; then
+      command git push --force-with-lease -u origin "${final_branch}" || return 1
+      git-reframe-summary-line published_force "origin/${final_branch}"
+    else
+      command git push -u origin "${final_branch}" || return 1
+      git-reframe-summary-line published "origin/${final_branch}"
+    fi
+  }
+
+  gbm::classify_branch() {
+    local branch_name=$1
+    local base_branch=$2
+    local cherry_output=''
+    local final_branch=''
+
+    command git show-ref --verify --quiet "refs/heads/${branch_name}" || return 1
+
+    if git-reframe-is-temp-branch "${branch_name}"; then
+      final_branch="$(git-reframe-read-metadata "${branch_name}" fortressfinalbranch)"
+      final_branch=${final_branch:-$(git-reframe-final-from-temp-branch "${branch_name}")}
+      print -r -- "temp ${final_branch}"
+      return 0
+    fi
+
+    if git-reframe-is-source-branch "${branch_name}"; then
+      final_branch="$(git-reframe-final-from-source-branch "${branch_name}")"
+      print -r -- "source ${final_branch}"
+      return 0
+    fi
+
+    if command git merge-base --is-ancestor "${branch_name}" "${base_branch}"; then
+      print -r -- "merged ${branch_name}"
+      return 0
+    fi
+
+    if command git diff --quiet "${base_branch}" "${branch_name}" >/dev/null 2>&1; then
+      print -r -- "squash ${branch_name}"
+      return 0
+    fi
+
+    cherry_output="$(command git cherry "${base_branch}" "${branch_name}" 2>/dev/null)" || return 1
+    if [[ -n "${cherry_output}" ]] && [[ -z "$(print -r -- "${cherry_output}" | command awk '$1 != "-" { print; exit 0 }')" ]]; then
+      print -r -- "squash ${branch_name}"
+      return 0
+    fi
+
+    return 1
+  }
+
+  gbm::cmd_start() {
+    local final_branch="${1:-}"
+    local base_branch=''
+    local temp_branch=''
+
+    [[ -n "${final_branch}" && $# -eq 1 ]] || { print -u2 -- 'usage: gbm start <final-branch>'; return 1; }
+
+    git-reframe-require-repo || return 1
+    git-reframe-require-clean-worktree || return 1
+    git-reframe-require-available-branch "${final_branch}" || return 1
+
+    base_branch="$(git-reframe-primary-branch)" || return 1
+    [[ "${final_branch}" != "${base_branch}" ]] || gbm::fail 'final branch matches the primary branch; start would be meaningless' || return 1
+
+    temp_branch="$(git-reframe-temp-branch-name "${final_branch}")"
+    git-reframe-require-available-branch "${temp_branch}" || return 1
+
+    git-reframe-sync-base-branch "${base_branch}" || return 1
+    command git switch -c "${temp_branch}" || return 1
+    git-reframe-store-metadata "${temp_branch}" '' "${base_branch}" "${final_branch}"
+
+    git-reframe-summary-line base "${base_branch}"
+    git-reframe-summary-line temp "${temp_branch}"
+    git-reframe-summary-line final "${final_branch}"
+    print -r -- 'gbm next: work on the temp branch until you are ready to finish'
+  }
+
+  gbm::cmd_finish() {
+    local final_branch=''
+    local temp_branch=''
+    local commit_title=''
+    local publish_mode=0
+    local land_mode=0
+    local drop_source_mode=0
+    local base_branch=''
+    local source_branch=''
+    local remote_branch_exists=0
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --from)
+          [[ $# -ge 2 ]] || { print -u2 -- 'usage: gbm finish [final-branch] [--from <temp-branch>] [--message <title>] [--publish] [--land] [--drop-source]'; return 1; }
+          temp_branch=$2
+          shift 2
+          ;;
+        --message|-m)
+          [[ $# -ge 2 ]] || { print -u2 -- 'usage: gbm finish [final-branch] [--from <temp-branch>] [--message <title>] [--publish] [--land] [--drop-source]'; return 1; }
+          commit_title=$2
+          shift 2
+          ;;
+        --publish)
+          publish_mode=1
+          shift
+          ;;
+        --land)
+          land_mode=1
+          shift
+          ;;
+        --drop-source)
+          drop_source_mode=1
+          shift
+          ;;
+        --help|-h)
+          print -r -- 'usage: gbm finish [final-branch] [--from <temp-branch>] [--message <title>] [--publish] [--land] [--drop-source]'
+          return 0
+          ;;
+        *)
+          [[ -z "${final_branch}" ]] || { print -u2 -- 'usage: gbm finish [final-branch] [--from <temp-branch>] [--message <title>] [--publish] [--land] [--drop-source]'; return 1; }
+          final_branch=$1
+          shift
+          ;;
+      esac
+    done
+
+    git-reframe-require-repo || return 1
+    git-reframe-require-clean-worktree || return 1
+
+    temp_branch=${temp_branch:-$(command git branch --show-current 2>/dev/null)}
+    [[ -n "${temp_branch}" ]] || gbm::fail 'unable to determine the temporary branch' || return 1
+    git-reframe-require-local-branch "${temp_branch}" || return 1
+    git-reframe-is-temp-branch "${temp_branch}" || gbm::fail "branch is not a temp branch: ${temp_branch}" || return 1
+
+    [[ -n "${final_branch}" ]] || final_branch="$(git-reframe-read-metadata "${temp_branch}" fortressfinalbranch)"
+    [[ -n "${final_branch}" ]] || final_branch="$(git-reframe-final-from-temp-branch "${temp_branch}")"
+    [[ -n "${final_branch}" ]] || gbm::fail 'final branch was not provided and no gbm metadata was found' || return 1
+
+    git-reframe-require-available-local-branch "${final_branch}" || return 1
+    git-reframe-remote-branch-exists "${final_branch}" && remote_branch_exists=1
+
+    base_branch="$(git-reframe-read-metadata "${temp_branch}" fortressbasebranch)"
+    [[ -n "${base_branch}" ]] || base_branch="$(git-reframe-primary-branch)" || return 1
+    source_branch="$(git-reframe-read-metadata "${temp_branch}" fortresssourcebranch)"
+
+    git-reframe-sync-base-branch "${base_branch}" || return 1
+    command git switch -c "${final_branch}" || return 1
+    command git merge --squash "${temp_branch}" || return 1
+
+    if [[ -n "${commit_title}" ]]; then
+      command git commit -m "${commit_title}" || return 1
+    else
+      command git commit || return 1
+    fi
+
+    git-reframe-clear-metadata "${temp_branch}"
+    command git branch -D "${temp_branch}" >/dev/null 2>&1 || return 1
+
+    git-reframe-summary-line source "${source_branch:-none}"
+    git-reframe-summary-line removed_temp "${temp_branch}"
+    git-reframe-summary-line base "${base_branch}"
+    git-reframe-summary-line final "${final_branch}"
+
+    if (( publish_mode )); then
+      gbm::publish_branch "${final_branch}" || return 1
+    else
+      gbm::publish_hint "${final_branch}"
+    fi
+
+    if (( land_mode )); then
+      command git switch "${base_branch}" || return 1
+      command git merge --no-ff "${final_branch}" || return 1
+      git-reframe-summary-line landed "${base_branch}"
+      print -r -- "gbm next: git push origin ${base_branch}"
+    fi
+
+    if (( drop_source_mode )) && [[ -n "${source_branch}" ]]; then
+      gbm::cleanup_source_branch "${source_branch}" 0 || return 1
+    elif [[ -n "${source_branch}" ]]; then
+      git-reframe-summary-line preserved_source "${source_branch}"
+    fi
+  }
+
+  gbm::cmd_publish() {
+    local final_branch="${1:-$(command git branch --show-current 2>/dev/null)}"
+
+    [[ $# -le 1 ]] || { print -u2 -- 'usage: gbm publish [final-branch]'; return 1; }
+
+    git-reframe-require-repo || return 1
+    git-reframe-require-clean-worktree || return 1
+    [[ -n "${final_branch}" ]] || gbm::fail 'unable to determine the final branch to publish' || return 1
+    git-reframe-require-local-branch "${final_branch}" || return 1
+
+    gbm::publish_branch "${final_branch}"
+  }
+
+  gbm::cmd_land() {
+    local final_branch=''
+    local publish_mode=0
+    local base_branch=''
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --publish)
+          publish_mode=1
+          shift
+          ;;
+        --help|-h)
+          print -r -- 'usage: gbm land <final-branch> [--publish]'
+          return 0
+          ;;
+        *)
+          [[ -z "${final_branch}" ]] || { print -u2 -- 'usage: gbm land <final-branch> [--publish]'; return 1; }
+          final_branch=$1
+          shift
+          ;;
+      esac
+    done
+
+    [[ -n "${final_branch}" ]] || { print -u2 -- 'usage: gbm land <final-branch> [--publish]'; return 1; }
+
+    git-reframe-require-repo || return 1
+    git-reframe-require-clean-worktree || return 1
+    git-reframe-require-local-branch "${final_branch}" || return 1
+
+    base_branch="$(git-reframe-primary-branch)" || return 1
+    [[ "${final_branch}" != "${base_branch}" ]] || gbm::fail 'final branch matches the primary branch; land would be meaningless' || return 1
+
+    git-reframe-sync-base-branch "${base_branch}" || return 1
+    command git merge-base --is-ancestor "${base_branch}" "${final_branch}" >/dev/null 2>&1 || gbm::fail "branch does not contain ${base_branch}: ${final_branch}" || return 1
+    command git switch "${base_branch}" || return 1
+    command git merge --no-ff "${final_branch}" || return 1
+    git-reframe-summary-line landed "${base_branch}"
+
+    if (( publish_mode )); then
+      command git push origin "${base_branch}" || return 1
+      git-reframe-summary-line published "origin/${base_branch}"
+    else
+      print -r -- "gbm next: git push origin ${base_branch}"
+    fi
+  }
+
+  gbm::cmd_rewrite() {
+    local final_branch=''
+    local source_branch=''
+    local commit_title=''
+    local publish_mode=0
+    local land_mode=0
+    local drop_source_mode=0
+    local current_branch=''
+    local renamed_source_branch=''
+    local source_was_renamed=0
+    local -a finish_args
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --from)
+          [[ $# -ge 2 ]] || { print -u2 -- 'usage: gbm rewrite [final-branch] [--from <source-branch>] [--message <title>] [--publish] [--land] [--drop-source]'; return 1; }
+          source_branch=$2
+          shift 2
+          ;;
+        --message|-m)
+          [[ $# -ge 2 ]] || { print -u2 -- 'usage: gbm rewrite [final-branch] [--from <source-branch>] [--message <title>] [--publish] [--land] [--drop-source]'; return 1; }
+          commit_title=$2
+          shift 2
+          ;;
+        --publish)
+          publish_mode=1
+          shift
+          ;;
+        --land)
+          land_mode=1
+          shift
+          ;;
+        --drop-source)
+          drop_source_mode=1
+          shift
+          ;;
+        --help|-h)
+          print -r -- 'usage: gbm rewrite [final-branch] [--from <source-branch>] [--message <title>] [--publish] [--land] [--drop-source]'
+          return 0
+          ;;
+        *)
+          [[ -z "${final_branch}" ]] || { print -u2 -- 'usage: gbm rewrite [final-branch] [--from <source-branch>] [--message <title>] [--publish] [--land] [--drop-source]'; return 1; }
+          final_branch=$1
+          shift
+          ;;
+      esac
+    done
+
+    git-reframe-require-repo || return 1
+    git-reframe-require-clean-worktree || return 1
+
+    current_branch="$(command git branch --show-current 2>/dev/null)"
+    source_branch=${source_branch:-${current_branch}}
+    final_branch=${final_branch:-${source_branch}}
+
+    [[ -n "${source_branch}" ]] || gbm::fail 'unable to determine the source branch' || return 1
+    [[ -n "${final_branch}" ]] || gbm::fail 'unable to determine the final branch' || return 1
+
+    git-reframe-require-local-branch "${source_branch}" || return 1
+
+    if [[ "${source_branch}" == "${final_branch}" ]]; then
+      renamed_source_branch="$(git-reframe-source-branch-name "${final_branch}")"
+      git-reframe-require-available-branch "${renamed_source_branch}" || return 1
+      command git branch -m "${source_branch}" "${renamed_source_branch}" || return 1
+      source_branch="${renamed_source_branch}"
+      source_was_renamed=1
+    elif git-reframe-local-branch-exists "${final_branch}"; then
+      gbm::fail "local final branch already exists: ${final_branch}" || return 1
+    fi
+
+    gbm::cmd_start "${final_branch}" || return 1
+    if [[ -n "${source_branch}" ]]; then
+      command git merge --no-ff --no-edit "${source_branch}" || return 1
+      git-reframe-store-metadata "$(command git branch --show-current 2>/dev/null)" "${source_branch}" "$(git-reframe-primary-branch)" "${final_branch}"
+    fi
+
+    finish_args=("${final_branch}")
+    [[ -n "${commit_title}" ]] && finish_args+=(--message "${commit_title}")
+    (( publish_mode )) && finish_args+=(--publish)
+    (( land_mode )) && finish_args+=(--land)
+    (( drop_source_mode )) && finish_args+=(--drop-source)
+
+    gbm::cmd_finish "${finish_args[@]}" || return 1
+
+    if (( source_was_renamed && ! drop_source_mode )); then
+      git-reframe-summary-line preserved_source "${source_branch}"
+    fi
+  }
+
+  gbm::cmd_close() {
+    local final_branch=''
+    local force_mode=0
+    local keep_remote=0
+    local base_branch=''
+    local temp_branch=''
+    local source_branch=''
+    local confirm_reply=''
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --force)
+          force_mode=1
+          shift
+          ;;
+        --keep-remote)
+          keep_remote=1
+          shift
+          ;;
+        --help|-h)
+          print -r -- 'usage: gbm close <final-branch> [--force] [--keep-remote]'
+          return 0
+          ;;
+        *)
+          [[ -z "${final_branch}" ]] || { print -u2 -- 'usage: gbm close <final-branch> [--force] [--keep-remote]'; return 1; }
+          final_branch=$1
+          shift
+          ;;
+      esac
+    done
+
+    [[ -n "${final_branch}" ]] || { print -u2 -- 'usage: gbm close <final-branch> [--force] [--keep-remote]'; return 1; }
+
+    git-reframe-require-repo || return 1
+    git-reframe-require-clean-worktree || return 1
+    git-reframe-require-local-branch "${final_branch}" || return 1
+
+    base_branch="$(git-reframe-primary-branch)" || return 1
+    [[ "${final_branch}" != "${base_branch}" ]] || gbm::fail "refusing to delete the primary branch: ${base_branch}" || return 1
+
+    if ! command git merge-base --is-ancestor "${final_branch}" "${base_branch}"; then
+      gbm::fail "branch is not merged into ${base_branch}: ${final_branch}" || return 1
+    fi
+
+    temp_branch="$(git-reframe-find-temp-branch "${final_branch}")"
+    source_branch="$(git-reframe-find-source-branch "${final_branch}")"
+
+    if (( ! force_mode )); then
+      [[ -t 0 ]] || gbm::fail 'no interactive terminal available; rerun with --force for non-interactive use' || return 1
+      print -r -- "gbm close final branch: ${final_branch}"
+      [[ -n "${temp_branch}" ]] && print -r -- "gbm close temp branch: ${temp_branch}"
+      [[ -n "${source_branch}" ]] && print -r -- "gbm close source branch: ${source_branch}"
+      if (( keep_remote )); then
+        print -r -- 'gbm close remote cleanup: disabled'
+      else
+        print -r -- 'gbm close remote cleanup: enabled'
+      fi
+      printf '%s' 'Proceed with branch close? [y/N] '
+      read -r confirm_reply
+      [[ "${confirm_reply:l}" == 'y' || "${confirm_reply:l}" == 'yes' ]] || { gbm::fail 'cancelled' || return 1; }
+    fi
+
+    gbm::delete_branch "${final_branch}" "${keep_remote}" safe 'branch' || return 1
+    [[ -n "${temp_branch}" ]] && gbm::cleanup_temp_branch "${temp_branch}" "${keep_remote}" || true
+    [[ -n "${source_branch}" ]] && gbm::cleanup_source_branch "${source_branch}" "${keep_remote}" || true
+  }
+
+  gbm::cmd_clean() {
+    local apply_mode=0
+    local force_mode=0
+    local keep_remote=0
+    local base_branch=''
+    local branch_name=''
+    local line=''
+    local kind=''
+    local confirm_reply=''
+    local -a requested_branches
+    local -a actionable_branches
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --apply)
+          apply_mode=1
+          shift
+          ;;
+        --force)
+          force_mode=1
+          shift
+          ;;
+        --keep-remote)
+          keep_remote=1
+          shift
+          ;;
+        --help|-h)
+          print -r -- 'usage: gbm clean [branch ...] [--apply] [--force] [--keep-remote]'
+          return 0
+          ;;
+        *)
+          requested_branches+=("$1")
+          shift
+          ;;
+      esac
+    done
+
+    git-reframe-require-repo || return 1
+    git-reframe-require-clean-worktree || return 1
+    base_branch="$(git-reframe-primary-branch)" || return 1
+
+    if [[ ${#requested_branches[@]} -eq 0 ]]; then
+      requested_branches=(${(f)"$(command git for-each-ref --format='%(refname:short)' refs/heads)"})
+    fi
+
+    for branch_name in "${requested_branches[@]}"; do
+      line="$(gbm::classify_branch "${branch_name}" "${base_branch}")" || continue
+      actionable_branches+=("${branch_name} ${line}")
+    done
+
+    if [[ ${#actionable_branches[@]} -eq 0 ]]; then
+      print -r -- "gbm clean: no actionable cleanup candidates in $(command git rev-parse --show-toplevel 2>/dev/null)"
+      return 0
+    fi
+
+    if (( ! apply_mode )); then
+      print -r -- 'gbm clean candidates:'
+      for line in "${actionable_branches[@]}"; do
+        print -r -- "  ${line}"
+      done
+      return 0
+    fi
+
+    if (( ! force_mode )); then
+      [[ -t 0 ]] || gbm::fail 'no interactive terminal available; rerun with --force for non-interactive use' || return 1
+      print -r -- 'gbm clean plan:'
+      for line in "${actionable_branches[@]}"; do
+        print -r -- "  ${line}"
+      done
+      printf '%s' 'Proceed with cleanup? [y/N] '
+      read -r confirm_reply
+      [[ "${confirm_reply:l}" == 'y' || "${confirm_reply:l}" == 'yes' ]] || { gbm::fail 'cancelled' || return 1; }
+    fi
+
+    for line in "${actionable_branches[@]}"; do
+      branch_name="${line%% *}"
+      kind="${${line#* }%% *}"
+
+      command git show-ref --verify --quiet "refs/heads/${branch_name}" || continue
+
+      case "${kind}" in
+        merged)
+          if (( keep_remote )); then
+            gbm::cmd_close "${branch_name}" --force --keep-remote || return 1
+          else
+            gbm::cmd_close "${branch_name}" --force || return 1
+          fi
+          ;;
+        temp)
+          gbm::cleanup_temp_branch "${branch_name}" "${keep_remote}" || return 1
+          ;;
+        source)
+          gbm::cleanup_source_branch "${branch_name}" "${keep_remote}" || return 1
+          ;;
+        squash)
+          gbm::delete_branch "${branch_name}" "${keep_remote}" force 'branch' || return 1
+          ;;
+      esac
+    done
+  }
+
+  gbm::cmd_list() {
+    local base_branch=''
+    local branch_name=''
+    local class_line=''
+
+    [[ $# -eq 0 ]] || { print -u2 -- 'usage: gbm list'; return 1; }
+
+    git-reframe-require-repo || return 1
+    base_branch="$(git-reframe-primary-branch)" || return 1
+
+    print -r -- "gbm primary: ${base_branch}"
+    for branch_name in ${(f)"$(command git for-each-ref --sort=refname --format='%(refname:short)' refs/heads)"}; do
+      class_line="$(gbm::classify_branch "${branch_name}" "${base_branch}")" || class_line="active ${branch_name}"
+      print -r -- "${branch_name} :: ${class_line}"
+    done
+  }
+
+  gbm::cmd_status() {
+    local branch_name="${1:-$(command git branch --show-current 2>/dev/null)}"
+    local base_branch=''
+    local class_line=''
+    local final_branch=''
+    local source_branch=''
+
+    [[ $# -le 1 ]] || { print -u2 -- 'usage: gbm status [branch]'; return 1; }
+
+    git-reframe-require-repo || return 1
+    [[ -n "${branch_name}" ]] || gbm::fail 'unable to determine the branch to inspect' || return 1
+    command git show-ref --verify --quiet "refs/heads/${branch_name}" || gbm::fail "local branch does not exist: ${branch_name}" || return 1
+
+    base_branch="$(git-reframe-primary-branch)" || return 1
+    class_line="$(gbm::classify_branch "${branch_name}" "${base_branch}")" || class_line="active ${branch_name}"
+    final_branch="$(git-reframe-read-metadata "${branch_name}" fortressfinalbranch)"
+    source_branch="$(git-reframe-read-metadata "${branch_name}" fortresssourcebranch)"
+    if [[ -z "${final_branch}" ]] && git-reframe-is-temp-branch "${branch_name}"; then
+      final_branch="$(git-reframe-final-from-temp-branch "${branch_name}")"
+    fi
+    if [[ -z "${final_branch}" ]] && git-reframe-is-source-branch "${branch_name}"; then
+      final_branch="$(git-reframe-final-from-source-branch "${branch_name}")"
+    fi
+
+    print -r -- "gbm branch: ${branch_name}"
+    print -r -- "gbm status: ${class_line}"
+    print -r -- "gbm primary: ${base_branch}"
+    [[ -n "${final_branch}" ]] && print -r -- "gbm final: ${final_branch}"
+    [[ -n "${source_branch}" ]] && print -r -- "gbm source: ${source_branch}"
+    if git-reframe-remote-branch-exists "${branch_name}"; then
+      print -r -- "gbm remote: origin/${branch_name}"
+    else
+      print -r -- 'gbm remote: local-only'
+    fi
+  }
+
+  case "${subcommand}" in
+    start)
+      gbm::cmd_start "$@"
+      ;;
+    rewrite)
+      gbm::cmd_rewrite "$@"
+      ;;
+    finish)
+      gbm::cmd_finish "$@"
+      ;;
+    publish)
+      gbm::cmd_publish "$@"
+      ;;
+    land)
+      gbm::cmd_land "$@"
+      ;;
+    close)
+      gbm::cmd_close "$@"
+      ;;
+    clean)
+      gbm::cmd_clean "$@"
+      ;;
+    list)
+      gbm::cmd_list "$@"
+      ;;
+    status)
+      gbm::cmd_status "$@"
+      ;;
+    help|-h|--help|'')
+      gbm::usage
+      [[ -n "${subcommand}" ]] || return 1
+      ;;
+    *)
+      gbm::usage
+      return 1
+      ;;
+  esac
+}

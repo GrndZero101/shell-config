@@ -134,10 +134,7 @@ Fortress also supports user-local extensions under `${XDG_CONFIG_HOME:-$HOME/.co
 | `gst` | concise git status with branch information |
 | `glg` | graph-style one-line git log |
 | `gwt` | list git worktrees |
-| `gdone` | delete a branch that is already merged into the primary branch, auto-detect the paired temp branch when possible, and confirm before cleanup |
-| `greframe-start` | create a timestamped temporary reframe branch from the primary branch and merge the current branch into it |
-| `greframe-finish` | create the final PR branch from the primary branch and squash the temp branch into it |
-| `greframe-rollback` | abandon a temporary reframe branch without touching the original source branch |
+| `gbm` | fortress-native branch lifecycle manager for starting temp branches, rewriting published branches, publishing and landing final branches, and cleanup |
 | `tv-git-branches-manage` | television-powered branch manager with fortress-owned channels, previews, and source cycling |
 | `tv-git-branches-cleanup` | television-powered cleanup picker backed by a fortress-owned cleanup channel |
 | `gcof` | fuzzy-select a branch and check it out |
@@ -145,35 +142,63 @@ Fortress also supports user-local extensions under `${XDG_CONFIG_HOME:-$HOME/.co
 | `gstashf` | fuzzy-select a stash and inspect it |
 | `gshowf` | fuzzy-select a commit and inspect it |
 
-`greframe` workflow:
+`gbm` fresh-start workflow:
 
 ```zsh
-greframe-start feat/bootstrap-onboarding
+gbm start feat/bootstrap-onboarding
 # keep working on feat/bootstrap-onboarding--wip-YYYYMMDD-HHMM
-greframe-finish feat/bootstrap-onboarding --message "feat(bootstrap): add installer and harden onboarding workflow"
+gbm finish --message "feat(bootstrap): add installer and harden onboarding workflow"
 ```
 
-Use `greframe-rollback` while checked out on the temp branch when you want to
-discard the reframe branch and keep the original source branch intact.
+Use `gbm clean <temp-branch> --apply` when you want to discard a temp branch
+without producing a final branch.
+
+Published-branch rewrite:
+
+```zsh
+git switch feat/m0006-cross-platform-and-module-ecosystem
+gbm rewrite --message "feat(m6): close the published-branch rewrite gap"
+# prints gbm publish: git push --force-with-lease -u origin feat/m0006-cross-platform-and-module-ecosystem
+```
+
+Use `--publish` when you want the helper to run that push for you. Add `--land`
+when the repo uses a local merge flow and you want the final branch merged into
+the primary branch with `git merge --no-ff`. Add `--drop-source` when the
+auto-renamed `--src-...` branch should be removed after the rewrite succeeds.
+
+Inspect and publish:
+
+```zsh
+gbm list
+gbm status
+gbm publish
+gbm land feat/m0006-cross-platform-and-module-ecosystem --publish
+```
+
+Use `gbm list` to classify the local branch set, `gbm status` to inspect the
+current branch lifecycle state, `gbm publish` to push the current final branch
+with the correct safety mode, and `gbm land` when you want an explicit
+merge-into-primary step separate from `finish` or `rewrite`.
 
 Post-merge cleanup:
 
 ```zsh
-gdone feat/m0003a-installer-onramp
+gbm close feat/m0003a-installer-onramp
 ```
 
 If a matching temp branch such as
-`feat/m0003a-installer-onramp--wip-YYYYMMDD-HHMM` exists, `gdone` detects it
-automatically and offers to remove it in the same pass.
+`feat/m0003a-installer-onramp--wip-YYYYMMDD-HHMM` or source branch such as
+`feat/m0003a-installer-onramp--src-YYYYMMDD-HHMM` exists, `gbm close` detects
+it automatically and removes it in the same pass.
 
-Explicit temp-branch cleanup:
+Cleanup preview:
 
 ```zsh
-gdone feat/m0003a-installer-onramp --temp feat/m0003a-installer-onramp--wip-YYYYMMDD-HHMM
+gbm clean
 ```
 
-Use `--force` for non-interactive or agentic cleanup. Use `--keep-remote` when
-you only want to delete local branches and keep any matching remote branches.
+Use `gbm clean --apply --force` for non-interactive cleanup. Use `--keep-remote`
+when you only want to delete local branches and keep matching remote branches.
 
 Television cleanup picker:
 
@@ -184,8 +209,7 @@ tv-git-branches-cleanup
 This picker now runs through a fortress-owned Television channel and lists
 actionable local branches only:
 
-- `merged` branches route through `gdone`
-- `temp` branches route through `greframe-rollback`
+- `merged`, `temp`, and `source` branches route through `gbm clean --apply`
 - `squash` branches are treated as squash-equivalent to the primary branch and are dropped with `git branch -D`
 - preview content comes from the repo-owned Television cable instead of inline shell strings
 

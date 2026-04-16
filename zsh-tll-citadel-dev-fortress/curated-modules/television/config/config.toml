@@ -78,4 +78,4 @@ fallback_channel = "files"
 
 [shell_integration.channel_triggers]
 "fortress-git-branches-manage" = ["git switch", "git checkout", "gsw", "gco"]
-"fortress-git-branches-cleanup" = ["git branch -d", "git branch -D", "gdone", "greframe-rollback"]
+"fortress-git-branches-cleanup" = ["git branch -d", "git branch -D", "gbm"]

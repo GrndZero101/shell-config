@@ -160,6 +160,35 @@ fortress-hud-module-summary() {
   print -r -- "active=${active_source} shadowing=${shadow_state} local=$([[ -r "${local_path}" ]] && print -r -- present || print -r -- absent) curated=$([[ -r "${curated_path}" ]] && print -r -- present || print -r -- absent)"
 }
 
+# Print the current branch lifecycle summary when gbm is available.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing one compact summary line.
+fortress-hud-branch-lifecycle-summary() {
+  local current_branch=''
+  local gbm_output=''
+  local status_line=''
+  local output_line=''
+
+  (( $+commands[git] )) || { print -r -- 'git-missing'; return 0; }
+  command git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { print -r -- 'not-in-repo'; return 0; }
+  (( $+functions[gbm] )) || { print -r -- 'gbm-unavailable'; return 0; }
+
+  current_branch="$(command git branch --show-current 2>/dev/null)"
+  [[ -n "${current_branch}" ]] || { print -r -- 'detached'; return 0; }
+
+  gbm_output="$(gbm status "${current_branch}" 2>/dev/null)" || { print -r -- "${current_branch} state=active"; return 0; }
+  for output_line in ${(f)gbm_output}; do
+    if [[ "${output_line}" == gbm\ status:\ * ]]; then
+      status_line="${output_line#gbm status: }"
+      break
+    fi
+  done
+  [[ -n "${status_line}" ]] || status_line="active ${current_branch}"
+  print -r -- "${current_branch} state=${status_line}"
+}
+
 # Print a renderer-aware section heading.
 # Arguments:
 #   $1: renderer mode, standard or pretty.
@@ -631,6 +660,7 @@ fortress-hud() {
 
   fortress-hud-section "${render_mode}" tools '󰈔' 'Tools'
   fortress-hud-line "${render_mode}" tools 'git' "$(fortress-hud-render-command "${render_mode}" git)"
+  fortress-hud-line "${render_mode}" tools 'branch_lifecycle' "$(fortress-hud-branch-lifecycle-summary)"
   fortress-hud-line "${render_mode}" tools 'zinit_repo' "$(fortress-hud-render-bool "${render_mode}" "${zinit_repo_ready}")"
   fortress-hud-line "${render_mode}" tools 'fzf' "$(fortress-hud-render-command "${render_mode}" fzf)"
   fortress-hud-line "${render_mode}" tools 'atuin' "$(fortress-hud-render-command "${render_mode}" atuin)"
