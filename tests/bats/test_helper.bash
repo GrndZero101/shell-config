@@ -17,6 +17,10 @@ setup_isolated_shell_config_env() {
   export XDG_DATA_HOME="$TEST_ROOT/data"
   export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
 
+  # An inherited ZDOTDIR makes zsh skip $HOME/.zshenv and load the caller's
+  # live profile instead of the checkout under test.
+  unset ZDOTDIR SHELL_CONFIG_PROFILE
+
   mkdir -p \
     "$HOME" \
     "$XDG_CONFIG_HOME" \
@@ -24,6 +28,10 @@ setup_isolated_shell_config_env() {
     "$XDG_CACHE_HOME" \
     "$XDG_DATA_HOME" \
     "$XDG_RUNTIME_DIR"
+
+  # Commands such as `csm select` re-exec zsh; give them EOF on stdin so the
+  # suite never blocks on whatever stdin the runner inherited.
+  exec </dev/null
 }
 
 teardown_isolated_shell_config_env() {

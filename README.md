@@ -12,7 +12,7 @@
 
 The project is intentionally split across layers:
 
-- the root [`.zshenv`](/home/timl/projects/tboss/shell-config/.zshenv) only selects the active profile
+- the root [`.zshenv`](.zshenv) only selects the active profile
 - each `zsh-*` directory is a standalone shell product
 - `csm` is the operator surface for bootstrap, profile switching, and module management
 - profile-specific `USAGE.md` and `DESIGN.md` files carry the operational truth
@@ -96,9 +96,9 @@ csm list-modules
 
 > [!NOTE]
 > For the fuller day-to-day shell guidance, see
-> [USAGE.md](/home/timl/projects/tboss/shell-config/USAGE.md) and the active
+> [USAGE.md](USAGE.md) and the active
 > profile docs such as
-> [zsh-tll-citadel-dev-fortress/USAGE.md](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/USAGE.md).
+> [zsh-tll-citadel-dev-fortress/USAGE.md](zsh-tll-citadel-dev-fortress/USAGE.md).
 
 ## Status
 
@@ -111,7 +111,7 @@ csm list-modules
 | Reference profiles | Working | Atuin and `fzf-tab` comparison profiles exist |
 | Fortress profile | Working foundation | Daily-use shell with stronger operator ergonomics |
 | Curated module lifecycle | Working foundation | Curated-live plus local-fork model exists |
-| Planning and roadmap flow | Working foundation | Roadmap and milestone workflow now exist and the active milestone is `M6 Cross-Platform and Module Ecosystem Expansion` |
+| Planning and roadmap flow | Working foundation | Roadmap and milestone workflow exist; `M0`–`M7` are done and the next milestone is being drafted |
 | Test harness | Working | `bats-core` suite, repo-owned runner, and Ubuntu Docker smoke path cover the main `csm` lifecycle flows |
 
 ## :wrench: Operator Surface
@@ -128,27 +128,27 @@ csm list-modules
 
 | Profile | Current state | Primary docs |
 | --- | --- | --- |
-| `zsh-zero` | Supported minimal baseline | [zsh-zero/USAGE.md](/home/timl/projects/tboss/shell-config/zsh-zero/USAGE.md) |
-| `zsh-clean` | Supported native baseline | [zsh-clean/USAGE.md](/home/timl/projects/tboss/shell-config/zsh-clean/USAGE.md) |
-| `zsh-ref-atuin` | Supported reference profile | [zsh-ref-atuin/USAGE.md](/home/timl/projects/tboss/shell-config/zsh-ref-atuin/USAGE.md) |
-| `zsh-ref-fzftab` | Supported reference profile | [zsh-ref-fzftab/USAGE.md](/home/timl/projects/tboss/shell-config/zsh-ref-fzftab/USAGE.md) |
-| `zsh-tll-citadel-dev-fortress` | Supported flagship profile | [zsh-tll-citadel-dev-fortress/USAGE.md](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/USAGE.md) |
-| `zsh-tll-test` | Experimental / internal | [zsh-tll-test/USAGE.md](/home/timl/projects/tboss/shell-config/zsh-tll-test/USAGE.md) |
+| `zsh-zero` | Supported minimal baseline | [USAGE.md](zsh-zero/USAGE.md) · [DESIGN.md](zsh-zero/DESIGN.md) |
+| `zsh-clean` | Supported native baseline | [USAGE.md](zsh-clean/USAGE.md) · [DESIGN.md](zsh-clean/DESIGN.md) |
+| `zsh-ref-atuin` | Supported reference profile | [USAGE.md](zsh-ref-atuin/USAGE.md) · [DESIGN.md](zsh-ref-atuin/DESIGN.md) |
+| `zsh-ref-fzftab` | Supported reference profile | [USAGE.md](zsh-ref-fzftab/USAGE.md) · [DESIGN.md](zsh-ref-fzftab/DESIGN.md) |
+| `zsh-tll-citadel-dev-fortress` | Supported flagship profile | [USAGE.md](zsh-tll-citadel-dev-fortress/USAGE.md) · [DESIGN.md](zsh-tll-citadel-dev-fortress/DESIGN.md) |
+| `zsh-tll-test` | Experimental / internal | [USAGE.md](zsh-tll-test/USAGE.md) · [DESIGN.md](zsh-tll-test/DESIGN.md) |
 
 ## :compass: Documentation Map
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
-| [README.md](/home/timl/projects/tboss/shell-config/README.md) | Everyone | Project overview and quick entry points |
-| [USAGE.md](/home/timl/projects/tboss/shell-config/USAGE.md) | Operators | Shared shell usage guidance across the repo |
-| [docs/profile-contract.md](/home/timl/projects/tboss/shell-config/docs/profile-contract.md) | Maintainers | Atomic profile structure and XDG contract |
-| [docs/zshenv.md](/home/timl/projects/tboss/shell-config/docs/zshenv.md) | Maintainers | Shared selector design and `.zshenv` behavior |
-| [docs/module-lifecycle.md](/home/timl/projects/tboss/shell-config/docs/module-lifecycle.md) | Maintainers | Curated-versus-local module model |
-| [docs/curated-modules.md](/home/timl/projects/tboss/shell-config/docs/curated-modules.md) | Maintainers | Curated module catalog, host expectations, and enable-versus-fork guidance |
-| [docs/platform-support.md](/home/timl/projects/tboss/shell-config/docs/platform-support.md) | Maintainers | Current Linux, WSL2, and macOS support reality |
-| [docs/ROADMAP.md](/home/timl/projects/tboss/shell-config/docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
-| [docs/milestones/README.md](/home/timl/projects/tboss/shell-config/docs/milestones/README.md) | Maintainers | Active milestone workflow and draft format |
-| [tests/README.md](/home/timl/projects/tboss/shell-config/tests/README.md) | Contributors | Test harness layout and runner usage |
+| [README.md](README.md) | Everyone | Project overview and quick entry points |
+| [USAGE.md](USAGE.md) | Operators | Shared shell usage guidance across the repo |
+| [docs/profile-contract.md](docs/profile-contract.md) | Maintainers | Atomic profile structure and XDG contract |
+| [docs/zshenv.md](docs/zshenv.md) | Maintainers | Shared selector design and `.zshenv` behavior |
+| [docs/module-lifecycle.md](docs/module-lifecycle.md) | Maintainers | Curated-versus-local module model |
+| [docs/curated-modules.md](docs/curated-modules.md) | Maintainers | Curated module catalog, host expectations, and enable-versus-fork guidance |
+| [docs/platform-support.md](docs/platform-support.md) | Maintainers | Current Linux, WSL2, and macOS support reality |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
+| [docs/milestones/README.md](docs/milestones/README.md) | Maintainers | Active milestone workflow and draft format |
+| [tests/README.md](tests/README.md) | Contributors | Test harness layout and runner usage |
 
 ## :building_construction: Repository Layout
 
@@ -183,11 +183,12 @@ Working today:
 - live module-resolution visibility in `fortress-hud` and `fortress-debug-interactive`
 - `csm reset-profile` for clean-state testing and recovery
 - Television-backed branch management and cleanup helpers in the fortress profile
+- `gbm` for temp-branch, rewrite, squash, publish, and land git workflows
 
 In progress:
 
 - continued operator UX hardening through dogfooding
-- deeper branch-management and debug-surface refinement
+- planning a first-class curated Homebrew module, available but not enabled by default
 
 > [!TIP]
 > When shell startup, module, or helper behavior looks wrong, start with the
@@ -207,14 +208,16 @@ In progress:
 
 ## :calendar: Current Milestone
 
-The current implementation focus is
-[M6 Cross-Platform and Module Ecosystem Expansion](/home/timl/projects/tboss/shell-config/docs/milestones/M6-cross-platform-and-module-ecosystem.md).
+The most recently completed milestone is
+[M6 Cross-Platform and Module Ecosystem Expansion](docs/milestones/M6-cross-platform-and-module-ecosystem.md).
+The next milestone is being drafted; [docs/ROADMAP.md](docs/ROADMAP.md) shows
+which milestone is `now`.
 
 Use these planning docs together:
 
-- [docs/ROADMAP.md](/home/timl/projects/tboss/shell-config/docs/ROADMAP.md) for strategy and milestone ordering
-- [docs/milestones/README.md](/home/timl/projects/tboss/shell-config/docs/milestones/README.md) for the execution workflow
-- the active milestone draft under [docs/milestones](/home/timl/projects/tboss/shell-config/docs/milestones)
+- [docs/ROADMAP.md](docs/ROADMAP.md) for strategy and milestone ordering
+- [docs/milestones/README.md](docs/milestones/README.md) for the execution workflow
+- the active milestone draft under [docs/milestones](docs/milestones)
 
 ## Collaboration Model
 
@@ -227,4 +230,4 @@ Use these planning docs together:
 ## License
 
 Released under the MIT License.
-See [LICENSE](/home/timl/projects/tboss/shell-config/LICENSE).
+See [LICENSE](LICENSE).

@@ -1,3 +1,7 @@
+# Experimental sandbox profile for trying plugin and tool combinations.
+# Not held to the supported-profile bar; see DESIGN.md for its carve-outs.
+# Optional tools are guarded so a missing binary is skipped, not an error.
+
 # Zinit installation
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 [ ! -d $ZINIT_HOME ] && mkdir -p "$(dirname $ZINIT_HOME)"
@@ -32,8 +36,8 @@ autoload -Uz compinit
 compinit
 
 # Initialize tools
-eval "$(starship init zsh)"
-eval "$(zoxide init zsh)"
+(( $+commands[starship] )) && eval "$(starship init zsh)"
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 
 export HOMEBREW_AUTO_UPDATE_SECS="86400"
 
@@ -46,15 +50,10 @@ setopt hist_expire_dups_first
 setopt hist_ignore_dups
 setopt hist_verify
 
-# Atuin - synced shell history (load last)
-# . "$HOME/.atuin/bin/env"
-#
-
+# Atuin must initialize after zsh-vi-mode so it keeps its Ctrl-R binding.
 zinit light jeffreytse/zsh-vi-mode
-zvm_after_init_commands+=(
-  'eval "$(atuin init zsh)"'
-)
-
-
-# Deliberately minimal interactive shell.
-# PROMPT='%n@%m:%~ %# '
+if (( $+commands[atuin] )); then
+  zvm_after_init_commands+=(
+    'eval "$(atuin init zsh)"'
+  )
+fi

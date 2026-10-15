@@ -15,7 +15,7 @@ Use `csm enable-module <name>` when you want the repo-owned module as-is.
 Use `csm install-module <name>` only when you want a user-local fork.
 
 For the lifecycle model behind that rule, see
-[module-lifecycle.md](/home/timl/projects/tboss/shell-config/docs/module-lifecycle.md).
+[module-lifecycle.md](module-lifecycle.md).
 
 ## Module Catalog
 

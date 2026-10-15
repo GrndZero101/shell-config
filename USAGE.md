@@ -6,9 +6,9 @@ Practical usage notes for the shell profiles in this repository, with emphasis o
 > This guide describes the current `zsh-clean` and `zsh-tll-citadel-dev-fortress` behavior.
 > `zsh-zero` is intentionally minimal and does not provide the same hotkey ergonomics.
 > Cross-platform support status itself lives in
-> [`docs/platform-support.md`](/home/timl/projects/tboss/shell-config/docs/platform-support.md).
-> Planning and milestone tracking live in [`docs/ROADMAP.md`](/home/timl/projects/tboss/shell-config/docs/ROADMAP.md)
-> and [`docs/milestones/README.md`](/home/timl/projects/tboss/shell-config/docs/milestones/README.md).
+> [`docs/platform-support.md`](docs/platform-support.md).
+> Planning and milestone tracking live in [`docs/ROADMAP.md`](docs/ROADMAP.md)
+> and [`docs/milestones/README.md`](docs/milestones/README.md).
 > This file is for operational shell behavior only.
 
 ## Line Editor Modes

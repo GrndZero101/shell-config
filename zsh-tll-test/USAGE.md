@@ -1,70 +1,61 @@
-# zsh-zero Usage
+# zsh-tll-test Usage
 
-`zsh-zero` is the bare-minimum profile in this repository.
-It is for testing startup, validating selector behavior, or working from a nearly unmodified shell without ergonomic extras.
+`zsh-tll-test` is an experimental sandbox profile for trying plugin and tool combinations in isolation from the supported profiles.
 
-> [!NOTE]
-> This profile is intentionally minimal.
-> If you want stronger history, completion, or helper behavior, use `zsh-clean` or `zsh-tll-citadel-dev-fortress`.
+> [!WARNING]
+> This profile is experimental and internal.
+> Its contents change with whatever is being evaluated; use `zsh-clean` or `zsh-tll-citadel-dev-fortress` for daily work.
 
 ## Identity
 
-- Profile directory: `zsh-zero`
-- Intended user: someone who wants the smallest possible profile in this repo
-- Design goal: prove the profile-selection model with almost no shell behavior added
+- Profile directory: `zsh-tll-test`
+- Intended user: a maintainer evaluating plugins or tool init orders
+- Design goal: fast experimentation with minimal ceremony
 
 ## Editing Mode
 
-- Default line editor mode: terminal and zsh defaults
-- How to enter command mode: not configured by this profile
-- How to return to insert mode: not configured by this profile
+- Default line editor mode: vi mode via `jeffreytse/zsh-vi-mode`
+- How to enter command mode: press `Esc`
+- How to return to insert mode: press `i`, `a`, or `A`
 
 ## Hotkeys
 
-This profile does not define line editor hotkeys beyond normal zsh defaults.
-
 | Key | Behavior | Notes |
 | --- | --- | --- |
-| `Ctrl-A` | terminal/zsh default | not explicitly bound here |
-| `Ctrl-E` | terminal/zsh default | not explicitly bound here |
-| `Ctrl-R` | terminal/zsh default | not explicitly bound here |
+| `Ctrl-R` | Atuin history search when `atuin` is installed | initialized after `zsh-vi-mode` via `zvm_after_init_commands` |
+| `Tab` | `fzf-tab` completion menu | requires `fzf` |
 
 ## History
 
 - History mode: profile
-- History file location: zsh default unless you add your own config later
-- Prefix search behavior: not configured by this profile
-- Incremental search behavior: zsh default behavior only
+- History file location: `$HOME/.zhistory` (not XDG; see Caveats)
+- Prefix search behavior: plugin defaults
+- Incremental search behavior: Atuin when installed
 
 ## Prompt
 
-- Prompt style: `%n@%m:%~ %# `
-- Right prompt: none
-- Git or repo context: none
+- Prompt style: Starship when installed; otherwise the zsh default
+- Right prompt: Starship's configuration
+- Git or repo context: via Starship
 
-## Helpers
+## Plugins
 
-This profile does not define helper functions.
+Loaded through `zinit`, which is cloned automatically into `${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git` on first start.
 
-| Function | Purpose |
+| Source | Items |
 | --- | --- |
-| none | intentionally minimal |
-
-## Aliases
-
-This profile does not define aliases.
-
-| Alias | Expands to | Notes |
-| --- | --- | --- |
-| none | n/a | intentionally minimal |
+| Oh My Zsh libraries | `git`, `directories`, `theme-and-appearance`, `async_prompt` |
+| Oh My Zsh plugins | `git`, `brew`, `direnv`, `eza` (dirs first, git status, header, icons) |
+| zsh plugins | `zsh-syntax-highlighting`, `zsh-autosuggestions`, `fzf-tab`, `zsh-vi-mode` |
 
 ## External Tools
 
-This profile does not integrate optional tools.
-
 | Tool | How it is used |
 | --- | --- |
-| none | no tool-specific integrations are configured |
+| `starship` | prompt, initialized only when installed |
+| `zoxide` | directory jumping, initialized only when installed |
+| `atuin` | history search, initialized after vi mode only when installed |
+| `eza` | listing aliases from the Oh My Zsh `eza` plugin |
 
 ## Profile Switching
 
@@ -72,11 +63,9 @@ This profile does not integrate optional tools.
 - Clean switch command: `csm select --clean`
 - Notes about environment isolation: use `csm` directly because this profile does not autoload `zsh-profile-select`
 
-## Terminal Notes
-
-Because this profile does not add compatibility bindings, terminal behavior depends mostly on the underlying zsh defaults and your terminal emulator.
-
 ## Caveats
 
-- this profile is intentionally sparse
-- it is best used as a control or recovery profile rather than a comfort profile
+- first startup requires network access to clone `zinit` and fetch plugins
+- history is written to `$HOME/.zhistory`, which is shared with any non-repo zsh setup using the same path
+- `HOMEBREW_AUTO_UPDATE_SECS` is set to one day for the session
+- contents change without notice as experiments come and go

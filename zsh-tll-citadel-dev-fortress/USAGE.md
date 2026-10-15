@@ -35,7 +35,7 @@ Recommended first-use order on a new host:
 
 Use the shared platform support guide for the current truth source:
 
-- [docs/platform-support.md](/home/timl/projects/tboss/shell-config/docs/platform-support.md)
+- [docs/platform-support.md](../docs/platform-support.md)
 
 ## Editing Mode
 
@@ -393,13 +393,13 @@ They also show a `source` column so you can quickly see whether an alias came fr
 
 | Tool     | How it is used                                                       |
 | -------- | -------------------------------------------------------------------- |
-| `eza`    | richer directory listing and tree output with a vendored Catppuccin Mocha theme in [`config/eza/theme.yml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/eza/theme.yml); fortress uses icons by default and enables header plus git status in `ll`; refreshable with `csm sync-catppuccin eza` |
+| `eza`    | richer directory listing and tree output with a vendored Catppuccin Mocha theme in [`config/eza/theme.yml`](config/eza/theme.yml); fortress uses icons by default and enables header plus git status in `ll`; refreshable with `csm sync-catppuccin eza` |
 | `bat`    | better file viewing through `cat` alias                              |
 | `fzf`    | fuzzy file, directory, and history selection via widgets and helpers |
 | `rg`     | used as the `grep` alias when installed                              |
 | `fd`     | used as the `find` alias when installed                              |
 | `jq`     | pretty-print JSON through `jqp`                                      |
-| `starship` | richer fortress prompt engine using the profile-local Catppuccin preset in [`starship.toml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/starship.toml) |
+| `starship` | richer fortress prompt engine using the profile-local Catppuccin preset in [`starship.toml`](starship.toml) |
 | `zinit` | fortress-only plugin manager for the optional plugin layer, installed explicitly with `csm install-zinit` |
 | `zoxide` | replaces `cd` with smarter directory jumping while preserving `cd` muscle memory |
 | `direnv` | automatic per-directory environment loading through its zsh hook     |
@@ -599,7 +599,7 @@ Fortress currently ships these curated optional modules:
 
 The fuller catalog and host guidance now live in:
 
-- [docs/curated-modules.md](/home/timl/projects/tboss/shell-config/docs/curated-modules.md)
+- [docs/curated-modules.md](../docs/curated-modules.md)
 
 Host-sensitive module notes:
 
@@ -641,8 +641,8 @@ Fortress default:
 
 Current and target module-lifecycle design is described in:
 
-- [module-lifecycle.md](/home/timl/projects/tboss/shell-config/docs/module-lifecycle.md)
-- [curated-modules.md](/home/timl/projects/tboss/shell-config/docs/curated-modules.md)
+- [module-lifecycle.md](../docs/module-lifecycle.md)
+- [curated-modules.md](../docs/curated-modules.md)
 
 Recommended curated-module flow:
 
@@ -783,9 +783,9 @@ zsh -il
 - `SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=1` enables `zsh-autosuggestions` when `zinit` is available; default behavior is on
 - `SHELL_FORTRESS_ENABLE_ATUIN=1` keeps the default Atuin integration active when the `atuin` command is installed; when vi mode is active, fortress follows Atuin's documented `zvm_after_init_commands` integration pattern
 - `SHELL_FORTRESS_ENABLE_ATUIN=0` disables Atuin integration entirely
-- when Atuin is enabled, fortress exports `ATUIN_CONFIG_DIR` to [`config/atuin`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin) and `ATUIN_THEME_DIR` to [`config/atuin/themes`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/themes)
-- when Atuin is enabled, fortress exports `ATUIN_THEME_DIR` to [`config/atuin/themes`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/themes) and vendors the official `catppuccin-mocha-mauve` theme
-- fortress ships a profile-local Atuin config in [`config/atuin/config.toml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/config.toml) that selects the vendored `catppuccin-mocha-mauve` theme
+- when Atuin is enabled, fortress exports `ATUIN_CONFIG_DIR` to [`config/atuin`](config/atuin) and `ATUIN_THEME_DIR` to [`config/atuin/themes`](config/atuin/themes)
+- when Atuin is enabled, fortress exports `ATUIN_THEME_DIR` to [`config/atuin/themes`](config/atuin/themes) and vendors the official `catppuccin-mocha-mauve` theme
+- fortress ships a profile-local Atuin config in [`config/atuin/config.toml`](config/atuin/config.toml) that selects the vendored `catppuccin-mocha-mauve` theme
 - in live-shell testing, Atuin respected the exported `ATUIN_CONFIG_DIR` and used the profile-local config even though `atuin info` still reported the default config path
 - Atuin may still create `~/.config/atuin/` as a directory, but the active config and theme can still come from the exported profile-local config directory
 - refresh the vendored Atuin Catppuccin theme with `csm sync-catppuccin atuin` or refresh all supported Catppuccin assets with `csm sync-catppuccin`
@@ -823,7 +823,7 @@ ZSH_WEB_SEARCH_ENGINES=(
   - `marlonrichert/zsh-autocomplete` when `SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE=1`, loaded before tool-level `compdef` usage so it can own `compinit`
   - `Aloxaf/fzf-tab` when `fzf` is installed and `SHELL_FORTRESS_ENABLE_FZF_TAB=1`, loaded synchronously so `Tab` is intercepted on first use
   - `zsh-users/zsh-autosuggestions`, enabled by default when `SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=1`
-  - `atuin` when `SHELL_FORTRESS_ENABLE_ATUIN=1`; if vi mode is active, fortress defers its init through `zvm_after_init_commands` as recommended by Atuin, and uses the vendored official Catppuccin Mocha theme file in [`config/atuin/themes/catppuccin-mocha-mauve.toml`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/config/atuin/themes/catppuccin-mocha-mauve.toml)
+  - `atuin` when `SHELL_FORTRESS_ENABLE_ATUIN=1`; if vi mode is active, fortress defers its init through `zvm_after_init_commands` as recommended by Atuin, and uses the vendored official Catppuccin Mocha theme file in [`config/atuin/themes/catppuccin-mocha-mauve.toml`](config/atuin/themes/catppuccin-mocha-mauve.toml)
   - `zsh-users/zsh-syntax-highlighting`, loaded late so it remains the last highlighter in the interactive stack
   - `zsh-vi-mode` normally takes precedence over `zsh-autocomplete`, but fortress can enter an experimental eager-init compatibility mode when both are enabled
   - `fzf-tab` and `zsh-autocomplete` are treated as alternative completion frontends; fortress skips `fzf-tab` whenever `zsh-autocomplete` actually loads

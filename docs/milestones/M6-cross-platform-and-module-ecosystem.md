@@ -79,8 +79,8 @@ inspectable shell architecture.
 
 ## Progress Notes
 
-- [x] Added a curated module catalog and enable-versus-fork guidance in [docs/curated-modules.md](/home/timl/projects/tboss/shell-config/docs/curated-modules.md)
-- [x] Added an explicit platform support matrix and current verification status in [docs/platform-support.md](/home/timl/projects/tboss/shell-config/docs/platform-support.md)
+- [x] Added a curated module catalog and enable-versus-fork guidance in [docs/curated-modules.md](../curated-modules.md)
+- [x] Added an explicit platform support matrix and current verification status in [docs/platform-support.md](../platform-support.md)
 - [x] Documented the current honest support stance: strongest on Linux and WSL2, macOS expected but not yet sufficiently verified
 - [x] Documented the current code-level host assumptions around Homebrew/Linuxbrew discovery, opener behavior, and safest-first profile validation
 - [x] Tightened fortress profile guidance so host-sensitive modules and fallback validation order are obvious in operator-facing docs

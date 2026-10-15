@@ -5,7 +5,7 @@ It should feel capable, polished, and information-rich without becoming an opaqu
 
 > [!NOTE]
 > This file captures profile design intent and aesthetic rules.
-> Operational truth for actual behavior lives in [`USAGE.md`](/home/timl/projects/tboss/shell-config/zsh-tll-citadel-dev-fortress/USAGE.md).
+> Operational truth for actual behavior lives in [`USAGE.md`](USAGE.md).
 
 ## Identity
 

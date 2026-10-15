@@ -37,7 +37,7 @@ fi
 profile_dirs=(${completion_root}/zsh-*(N-/))
 profiles=(${profile_dirs:t})
 fortress_modules=(${completion_root}/zsh-tll-citadel-dev-fortress/curated-modules/*(N-/t))
-local_modules=(${HOME}/.config/shell-config.local/zsh-tll-citadel-dev-fortress/modules/*.zsh(N:t))
+local_modules=(${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config.local/zsh-tll-citadel-dev-fortress/modules/*.zsh(N:t))
 local_modules=(${local_modules%.zsh})
 all_modules=(${fortress_modules} ${local_modules})
 all_modules=(${(u)all_modules})

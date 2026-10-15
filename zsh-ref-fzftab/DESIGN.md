@@ -4,7 +4,7 @@
 
 > [!NOTE]
 > This file captures design intent.
-> Operational truth lives in [`USAGE.md`](/home/timl/projects/tboss/shell-config/zsh-ref-fzftab/USAGE.md).
+> Operational truth lives in [`USAGE.md`](USAGE.md).
 
 ## Identity
 

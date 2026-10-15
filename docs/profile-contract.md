@@ -2,8 +2,8 @@
 
 This repository uses atomic profiles with two explicit shared carve-outs:
 
-- [`shared/path.zsh`](/home/timl/projects/tboss/shell-config/shared/path.zsh)
-- [`shared/completions`](/home/timl/projects/tboss/shell-config/shared/completions)
+- [`shared/path.zsh`](../shared/path.zsh)
+- [`shared/completions`](../shared/completions)
 
 Each profile directory should be treated as a standalone shell product.
 To keep that maintainable, every profile follows a small contract.
@@ -25,8 +25,8 @@ Each profile should also include:
 
 `profile.zsh` is the profile contract file.
 It should stay small and contain simple variable assignments only.
-`USAGE.md` should follow the shared template at [`docs/templates/profile-usage-template.md`](/home/timl/projects/tboss/shell-config/docs/templates/profile-usage-template.md).
-`DESIGN.md` should follow the shared template at [`docs/templates/profile-design-template.md`](/home/timl/projects/tboss/shell-config/docs/templates/profile-design-template.md).
+`USAGE.md` should follow the shared template at [`docs/templates/profile-usage-template.md`](templates/profile-usage-template.md).
+`DESIGN.md` should follow the shared template at [`docs/templates/profile-design-template.md`](templates/profile-design-template.md).
 
 ## `profile.zsh`
 
@@ -165,8 +165,8 @@ when `shell-config` itself is installed under
 Atomic profiles are still the default rule.
 The allowed shared carve-outs are intentionally narrow:
 
-- [`shared/path.zsh`](/home/timl/projects/tboss/shell-config/shared/path.zsh) for common executable discovery
-- [`shared/completions`](/home/timl/projects/tboss/shell-config/shared/completions) for repo-owned completion functions such as `_csm`
+- [`shared/path.zsh`](../shared/path.zsh) for common executable discovery
+- [`shared/completions`](../shared/completions) for repo-owned completion functions such as `_csm`
 
 `shared/completions` exists to avoid repeating the same completion definitions across multiple profiles.
 It should not become a general shared-function library.
@@ -191,8 +191,8 @@ Each profile should also document its design intent in its own `DESIGN.md`.
 
 Use the shared template:
 
-- [`docs/templates/profile-usage-template.md`](/home/timl/projects/tboss/shell-config/docs/templates/profile-usage-template.md)
-- [`docs/templates/profile-design-template.md`](/home/timl/projects/tboss/shell-config/docs/templates/profile-design-template.md)
+- [`docs/templates/profile-usage-template.md`](templates/profile-usage-template.md)
+- [`docs/templates/profile-design-template.md`](templates/profile-design-template.md)
 
 This keeps profile documentation:
 

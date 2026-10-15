@@ -116,7 +116,7 @@ Delivered:
 - narrow shared carve-outs for `PATH` and repo-owned completions
 
 Details:
-[M0 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M0-atomic-profile-foundation.md)
+[M0 draft](milestones/M0-atomic-profile-foundation.md)
 
 ### `M1` Bootstrap and Profile Selection
 
@@ -142,7 +142,7 @@ Delivered:
 - default fallback to `zsh-clean`
 
 Details:
-[M1 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M1-bootstrap-and-profile-selection.md)
+[M1 draft](milestones/M1-bootstrap-and-profile-selection.md)
 
 ### `M2` Fortress Operator Surface
 
@@ -167,7 +167,7 @@ Delivered:
 - richer prompt handling and curated tool-module pattern
 
 Details:
-[M2 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M2-fortress-operator-surface.md)
+[M2 draft](milestones/M2-fortress-operator-surface.md)
 
 ### `M3` Curated Module Lifecycle
 
@@ -192,7 +192,7 @@ Delivered:
 - better module shadowing visibility
 
 Details:
-[M3 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M3-curated-module-lifecycle.md)
+[M3 draft](milestones/M3-curated-module-lifecycle.md)
 
 ### `M4` Documentation and Planning Normalization
 
@@ -217,7 +217,7 @@ Non-goals:
 - forcing shell-config into the exact same project shape as Dev Fortress
 
 Details:
-[M4 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M4-documentation-and-planning-normalization.md)
+[M4 draft](milestones/M4-documentation-and-planning-normalization.md)
 
 ### `M5` Interactive Operator Workflows
 
@@ -239,7 +239,7 @@ Exit criteria:
 - docs explain the preferred operator workflow for humans and agents
 
 Details:
-[M5 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M5-interactive-operator-workflows.md)
+[M5 draft](milestones/M5-interactive-operator-workflows.md)
 
 ### `M6` Cross-Platform and Module Ecosystem Expansion
 
@@ -270,7 +270,7 @@ Delivered:
   Fortress containers
 
 Details:
-[M6 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M6-cross-platform-and-module-ecosystem.md)
+[M6 draft](milestones/M6-cross-platform-and-module-ecosystem.md)
 
 ### `M7` Shell Integration Test Harness
 
@@ -297,7 +297,7 @@ Delivered:
 - test harness docs under `tests/README.md`
 
 Details:
-[M7 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M7-shell-integration-test-harness.md)
+[M7 draft](milestones/M7-shell-integration-test-harness.md)
 
 ## Idea Pool
 

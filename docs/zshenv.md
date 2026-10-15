@@ -1,7 +1,7 @@
 # `.zshenv` Explained
 
-This repository uses a single shared root [`.zshenv`](/home/timl/projects/tboss/shell-config/.zshenv) to select which atomic zsh profile should handle the rest of shell startup.
-It also allows one tightly scoped shared exception for executable discovery via [`shared/path.zsh`](/home/timl/projects/tboss/shell-config/shared/path.zsh).
+This repository uses a single shared root [`.zshenv`](../.zshenv) to select which atomic zsh profile should handle the rest of shell startup.
+It also allows one tightly scoped shared exception for executable discovery via [`shared/path.zsh`](../shared/path.zsh).
 
 That file is intentionally small:
 
@@ -91,7 +91,7 @@ The result is the repository root.
 
 This points to the only shared helper file currently allowed:
 
-- [`shared/path.zsh`](/home/timl/projects/tboss/shell-config/shared/path.zsh)
+- [`shared/path.zsh`](../shared/path.zsh)
 
 That file exists to populate a conservative baseline `PATH` for all shells, including non-interactive shells.
 
@@ -190,11 +190,11 @@ Those things belong inside the selected profile.
 
 If the shared `.zshenv` starts doing real runtime configuration, then the profiles are no longer truly atomic.
 
-The one current exception is [`shared/path.zsh`](/home/timl/projects/tboss/shell-config/shared/path.zsh), which is restricted to common `PATH` entries only.
+The one current exception is [`shared/path.zsh`](../shared/path.zsh), which is restricted to common `PATH` entries only.
 
 ## How It Gets Installed
 
-The manager command [`scripts/csm`](/home/timl/projects/tboss/shell-config/scripts/csm) installs `~/.zshenv` as a symlink to the repository root selector when run as `./scripts/csm bootstrap`.
+The manager command [`scripts/csm`](../scripts/csm) installs `~/.zshenv` as a symlink to the repository root selector when run as `./scripts/csm bootstrap`.
 That same bootstrap step also links `~/.local/bin/csm` to the repository manager command so profile management is easy to access from the command line.
 Profile selection state itself is then written under XDG state rather than into
 the checkout.
@@ -226,7 +226,7 @@ config-path file for older installs, or finally falls back to `zsh-clean`.
 The shared selector stays non-interactive by design.
 
 Interactive switching belongs inside compatible profiles, not in the root `.zshenv`.
-For example, [`zsh-clean/functions/zsh-profile-select`](/home/timl/projects/tboss/shell-config/zsh-clean/functions/zsh-profile-select) delegates to [`scripts/csm`](/home/timl/projects/tboss/shell-config/scripts/csm), which can:
+For example, [`zsh-clean/functions/zsh-profile-select`](../zsh-clean/functions/zsh-profile-select) delegates to [`scripts/csm`](../scripts/csm), which can:
 
 1. discover available `zsh-*` profile directories
 2. use `fzf` if available
