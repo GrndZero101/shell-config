@@ -1,0 +1,16 @@
+#autoload
+
+emulate -L zsh
+zmodload zsh/datetime
+
+local formatted_time width threshold
+width="${COLUMNS:-0}"
+threshold=110
+
+if (( width > 0 && width < threshold )); then
+  strftime -s formatted_time '%H:%M' "${EPOCHSECONDS}"
+else
+  strftime -s formatted_time '%d-%b-%Y %H:%M' "${EPOCHSECONDS}"
+fi
+
+export SHELL_FORTRESS_PROMPT_TIME="${formatted_time}"

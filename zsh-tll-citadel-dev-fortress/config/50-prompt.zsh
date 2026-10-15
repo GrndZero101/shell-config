@@ -9,8 +9,9 @@
 #   Autoloads prompt helpers, registers precmd hooks, and sets PROMPT/RPROMPT.
 fortress-load-native-prompt() {
   autoload -Uz add-zsh-hook promptinit vcs_info
-  autoload -Uz precmd-git-extra precmd-terminal-title precmd-vcs-info
+  autoload -Uz precmd-fortress-prompt-time precmd-git-extra precmd-terminal-title precmd-vcs-info
 
+  add-zsh-hook precmd precmd-fortress-prompt-time
   add-zsh-hook precmd precmd-terminal-title
 
   zstyle ':vcs_info:*' enable git
@@ -41,6 +42,10 @@ fortress-load-native-prompt() {
 # Side effects:
 #   Exports STARSHIP_CONFIG and evaluates starship init output.
 fortress-load-starship-prompt() {
+  autoload -Uz add-zsh-hook
+  autoload -Uz precmd-fortress-prompt-time
+
+  add-zsh-hook precmd precmd-fortress-prompt-time
   export STARSHIP_CONFIG="${ZDOTDIR}/starship.toml"
   eval "$(starship init zsh)"
 }

@@ -1,0 +1,32 @@
+# Print the effective AWS login mode for the current shell context.
+#
+# Resolution order:
+#   1. DEV_FORTRESS_AWS_LOGIN_MODE when set
+#   2. device-code inside a Dev Fortress workspace container
+#   3. browser everywhere else
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after writing the mode, or non-zero for an unsupported override.
+aws-login-mode() {
+  local configured_mode="${DEV_FORTRESS_AWS_LOGIN_MODE:-}"
+
+  case "${configured_mode}" in
+    ''|auto)
+      if [[ -n "${DEV_FORTRESS_WORKSPACE:-}" ]]; then
+        print -r -- 'device-code'
+      else
+        print -r -- 'browser'
+      fi
+      ;;
+    browser|device-code)
+      print -r -- "${configured_mode}"
+      ;;
+    *)
+      print -u2 -- "aws-login-mode: unsupported mode: ${configured_mode}"
+      print -u2 -- 'aws-login-mode: expected browser, device-code, or auto'
+      return 1
+      ;;
+  esac
+}

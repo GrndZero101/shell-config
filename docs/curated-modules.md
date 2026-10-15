@@ -21,9 +21,9 @@ For the lifecycle model behind that rule, see
 
 | Module | Purpose | Requires | Host expectations | Recommended default |
 | --- | --- | --- | --- | --- |
-| `aws` | AWS profile, identity, and login helpers | `aws` | Best on workstation-style hosts with AWS CLI configured; should work anywhere the AWS CLI is present | opt-in |
+| `aws` | AWS profile, identity, login-mode, and login helpers | `aws` | Best on workstation-style hosts with AWS CLI configured; should work anywhere the AWS CLI is present | opt-in |
 | `docker` | Docker aliases, context switching, and compact container inventory | `docker` | Best on hosts with a reachable Docker runtime; useful on Linux, WSL2, and macOS workstations | opt-in |
-| `git` | Extra git helpers for primary branch, reframe, cleanup, and compact repo workflows | `git` | General-purpose and host-light; good across Linux, WSL2, macOS, and containers | opt-in |
+| `git` | Extra git helpers for primary branch, reframe, cleanup, and compact repo workflows | `git` | General-purpose and host-light; good across Linux, WSL2, macOS, and containers | fortress default |
 | `kubectl` | Kubernetes aliases, context switching, and namespace helpers | `kubectl` | Best on workstation and cluster-admin hosts with kubeconfig access | opt-in |
 | `pass` | Password-store aliases and small helper functions | `pass` | Best on personal workstation hosts with GPG/password-store already set up | opt-in |
 | `television` | Television-backed picker helpers and git-branch channels | `tv` | Best on interactive workstation hosts; useful but still somewhat experimental | opt-in |
@@ -47,6 +47,11 @@ Good direct-enable candidates:
 - `kubectl`
 - `web_search`
 
+> [!NOTE]
+> `git` is now enabled by default in `zsh-tll-citadel-dev-fortress`. Use
+> `csm disable-module git` only when you explicitly want to opt out of the
+> default fortress git workflow layer.
+
 ### Fork Locally
 
 Prefer `csm install-module <name>` when:
@@ -61,6 +66,13 @@ Good fork candidates:
 - `aws` with organization-specific login patterns
 - `pass` with personal secret-store conventions
 - `television` if you want different picker channels, keybindings, or previews
+
+AWS specific note:
+
+- the curated `aws-login` helper defaults to normal browser login on native hosts
+- inside a Dev Fortress workspace container, it defaults to device-code login
+  because localhost callback OAuth is not guaranteed there
+- use `aws-login --browser` when you explicitly want the browser flow
 
 ## Host Notes
 

@@ -31,7 +31,7 @@ Verified in real day-to-day use:
 - active profile persistence under XDG state
 - fortress operator surfaces such as `fortress-hud` and `fortress-debug-interactive`
 - curated module lifecycle commands
-- git operator workflows such as `greframe`, `gdone`, and Television-backed branch flows
+- git operator workflows such as `gbm` and Television-backed branch flows
 
 Verified in isolated clean-room paths:
 

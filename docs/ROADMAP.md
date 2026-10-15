@@ -243,7 +243,7 @@ Details:
 
 ### `M6` Cross-Platform and Module Ecosystem Expansion
 
-Status: `now`
+Status: `done`
 
 Objective:
 Broaden the curated module set and platform polish without losing the
@@ -254,6 +254,20 @@ Exit criteria:
 - high-value curated modules have clear enable/fork guidance
 - Linux, macOS, and WSL behavior are documented where they diverge
 - module-specific operator surfaces remain discoverable and debuggable
+- live operator workflows close the remaining gap between milestone branch
+  development, final squash-branch publication, and landing the result onto the
+  primary branch
+
+Delivered:
+
+- curated module catalog and lifecycle guidance
+- platform support matrix plus explicit host-assumption documentation
+- `gbm` for fresh temp branches, published-branch rewrites, finish/publish
+  handoff, and optional local landing
+- `csm install-zinit --ensure` so convergent callers can install if missing
+  without triggering an update
+- workspace-aware `aws-login-mode` with device-code default inside Dev
+  Fortress containers
 
 Details:
 [M6 draft](/home/timl/projects/tboss/shell-config/docs/milestones/M6-cross-platform-and-module-ecosystem.md)

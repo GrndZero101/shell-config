@@ -58,6 +58,34 @@ git-reframe-require-local-branch() {
   command git show-ref --verify --quiet "refs/heads/${branch_name}" || git-reframe-fail "local branch does not exist: ${branch_name}"
 }
 
+# Return success when a branch exists locally.
+#
+# Arguments:
+#   $1: Branch name to inspect.
+# Returns:
+#   0 when the branch exists locally, otherwise 1.
+# Side effects:
+#   Reads local refs from the repository.
+git-reframe-local-branch-exists() {
+  local branch_name=$1
+
+  command git show-ref --verify --quiet "refs/heads/${branch_name}"
+}
+
+# Return success when a branch exists on origin.
+#
+# Arguments:
+#   $1: Branch name to inspect.
+# Returns:
+#   0 when the branch exists on origin, otherwise 1.
+# Side effects:
+#   Reads remote refs from the repository.
+git-reframe-remote-branch-exists() {
+  local branch_name=$1
+
+  command git show-ref --verify --quiet "refs/remotes/origin/${branch_name}"
+}
+
 # Return success when a branch exists locally or on origin.
 #
 # Arguments:
@@ -69,8 +97,8 @@ git-reframe-require-local-branch() {
 git-reframe-branch-exists-anywhere() {
   local branch_name=$1
 
-  command git show-ref --verify --quiet "refs/heads/${branch_name}" && return 0
-  command git show-ref --verify --quiet "refs/remotes/origin/${branch_name}" && return 0
+  git-reframe-local-branch-exists "${branch_name}" && return 0
+  git-reframe-remote-branch-exists "${branch_name}" && return 0
   return 1
 }
 
@@ -86,6 +114,21 @@ git-reframe-require-available-branch() {
   local branch_name=$1
 
   git-reframe-branch-exists-anywhere "${branch_name}" && git-reframe-fail "branch already exists: ${branch_name}"
+  return 0
+}
+
+# Fail when a branch name is already in use locally.
+#
+# Arguments:
+#   $1: Branch name to validate.
+# Returns:
+#   0 when the branch name is available locally, otherwise 1.
+# Side effects:
+#   Reads local refs from the repository.
+git-reframe-require-available-local-branch() {
+  local branch_name=$1
+
+  git-reframe-local-branch-exists "${branch_name}" && git-reframe-fail "local branch already exists: ${branch_name}"
   return 0
 }
 
@@ -125,6 +168,62 @@ git-reframe-temp-branch-name() {
   local final_branch=$1
 
   print -r -- "${final_branch}--wip-$(git-reframe-timestamp)"
+}
+
+# Print the renamed source branch name for a rewrite flow.
+#
+# Arguments:
+#   $1: Final branch root.
+# Returns:
+#   0 after printing the renamed source branch.
+# Side effects:
+#   Reads the local system clock.
+git-reframe-source-branch-name() {
+  local final_branch=$1
+
+  print -r -- "${final_branch}--src-$(git-reframe-timestamp)"
+}
+
+# Return success when a branch is a temporary gbm branch.
+git-reframe-is-temp-branch() {
+  [[ "$1" == *--wip-* ]]
+}
+
+# Return success when a branch is a rewritten source branch.
+git-reframe-is-source-branch() {
+  [[ "$1" == *--src-* ]]
+}
+
+# Print the final branch name derived from a temp branch name.
+git-reframe-final-from-temp-branch() {
+  print -r -- "${1%%--wip-*}"
+}
+
+# Print the final branch name derived from a source branch name.
+git-reframe-final-from-source-branch() {
+  print -r -- "${1%%--src-*}"
+}
+
+# Print the newest temp branch for a final branch when one exists.
+git-reframe-find-temp-branch() {
+  local final_branch=$1
+
+  command git for-each-ref \
+    --count=1 \
+    --sort=-committerdate \
+    --format='%(refname:short)' \
+    "refs/heads/${final_branch}--wip-*"
+}
+
+# Print the newest rewritten source branch for a final branch when one exists.
+git-reframe-find-source-branch() {
+  local final_branch=$1
+
+  command git for-each-ref \
+    --count=1 \
+    --sort=-committerdate \
+    --format='%(refname:short)' \
+    "refs/heads/${final_branch}--src-*"
 }
 
 # Persist greframe metadata on a temporary branch.
@@ -216,7 +315,7 @@ git-reframe-summary-line() {
   print -r -- "greframe ${label}: ${branch_name}"
 }
 
-autoload -Uz git-primary-branch git-recent-branches git-switch-primary gdone greframe-start greframe-finish greframe-rollback
+autoload -Uz git-primary-branch git-recent-branches git-switch-primary gbm
 
 alias gpb='git-primary-branch'
 alias grb='git-recent-branches'

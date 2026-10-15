@@ -30,7 +30,7 @@ operator workflows.
 ### M5-1 Harden branch reframe and cleanup workflows
 
 - [x] Problem: branch cleanup and squash-prep workflows are still young despite already reducing manual toil
-- [x] Scope: keep dogfooding `greframe`, `gdone`, and branch cleanup flows
+- [x] Scope: keep dogfooding the fortress branch lifecycle and cleanup flows
 - [x] Acceptance: the common milestone branch lifecycle is reliable in daily use
 
 ### M5-2 Improve interactive branch management
@@ -59,6 +59,12 @@ operator workflows.
 - [x] Verify Television branch workflows in disposable repos and live repos
 - [x] Confirm debug surfaces expose module source clearly
 - [x] Dogfood the configuration reset flow in a disposable XDG home
+
+## Follow-on Priority
+
+This milestone originally left a gap around published-branch rewrites and final
+squash publication. That follow-on work was completed in `M6` by consolidating
+the branch lifecycle behind `gbm`.
 
 ## Branch and Merge Plan
 

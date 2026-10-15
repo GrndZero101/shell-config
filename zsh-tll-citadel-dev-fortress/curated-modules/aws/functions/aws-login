@@ -2,18 +2,87 @@
 #
 # Arguments:
 #   $1 - Optional profile name. Falls back to AWS_PROFILE when omitted.
+#   --browser       Force browser login mode.
+#   --device-code   Force device-code login mode.
+#   --mode MODE     Explicit login mode: browser or device-code.
+#   --print-mode    Print the resolved mode and exit.
 # Returns:
 #   0 on success, non-zero on missing profile or AWS CLI failure.
 # Side effects:
 #   Calls the AWS CLI login flow for the selected profile.
 aws-login() {
-  local profile_name="${1:-${AWS_PROFILE:-}}"
+  local profile_name=''
+  local login_mode=''
+  local print_mode_only=0
+  local -a login_args
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --browser)
+        login_mode='browser'
+        shift
+        ;;
+      --device-code)
+        login_mode='device-code'
+        shift
+        ;;
+      --mode)
+        [[ $# -ge 2 ]] || {
+          print -u2 -- 'usage: aws-login [--browser|--device-code|--mode <mode>|--print-mode] [profile]'
+          return 1
+        }
+        login_mode="$2"
+        shift 2
+        ;;
+      --print-mode)
+        print_mode_only=1
+        shift
+        ;;
+      --help|-h)
+        print -r -- 'usage: aws-login [--browser|--device-code|--mode <mode>|--print-mode] [profile]'
+        return 0
+        ;;
+      *)
+        [[ -z "${profile_name}" ]] || {
+          print -u2 -- 'usage: aws-login [--browser|--device-code|--mode <mode>|--print-mode] [profile]'
+          return 1
+        }
+        profile_name="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "${login_mode}" ]]; then
+    login_mode="$(aws-login-mode)" || return 1
+  fi
+
+  case "${login_mode}" in
+    browser)
+      login_args=()
+      ;;
+    device-code)
+      login_args=(--use-device-code)
+      ;;
+    *)
+      print -u2 -- "aws-login: unsupported mode: ${login_mode}"
+      print -u2 -- 'aws-login: expected browser or device-code'
+      return 1
+      ;;
+  esac
+
+  if (( print_mode_only )); then
+    print -r -- "${login_mode}"
+    return 0
+  fi
+
+  profile_name="${profile_name:-${AWS_PROFILE:-}}"
 
   [[ -n "${profile_name}" ]] || {
-    print -u2 -- 'usage: aws-login <profile>'
+    print -u2 -- 'usage: aws-login [--browser|--device-code|--mode <mode>|--print-mode] <profile>'
     print -u2 -- 'aws-login: pass a profile or set AWS_PROFILE first'
     return 1
   }
 
-  aws sso login --profile "${profile_name}"
+  aws sso login "${login_args[@]}" --profile "${profile_name}"
 }

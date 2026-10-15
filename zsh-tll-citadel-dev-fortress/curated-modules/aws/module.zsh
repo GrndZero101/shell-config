@@ -10,6 +10,7 @@ autoload -Uz \
   aws-account-id \
   aws-identity \
   aws-login \
+  aws-login-mode \
   aws-profile \
   aws-profiles \
   aws-region \
@@ -21,6 +22,7 @@ alias awsa='aws-account-id'
 alias awsc='aws configure list-profiles'
 alias awsi='aws-identity'
 alias awsl='aws-login'
+alias awslm='aws-login-mode'
 alias awsp='aws-profile'
 alias awsps='aws-profiles'
 alias awsr='aws-region'

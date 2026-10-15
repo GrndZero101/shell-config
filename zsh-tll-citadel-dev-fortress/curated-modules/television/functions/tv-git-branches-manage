@@ -325,15 +325,17 @@ tv-git-branches-manage() {
         case "${current_action}" in
           merged)
             if (( delete_remote )); then
-              gdone "${target_branch}" --force || return 1
+              gbm clean "${target_branch}" --apply --force || return 1
             else
-              gdone "${target_branch}" --force --keep-remote || return 1
+              gbm clean "${target_branch}" --apply --force --keep-remote || return 1
             fi
             ;;
           temp)
-            greframe-rollback "${target_branch}" || return 1
-            print -r -- "tv-git-branches-manage cleaned temp branch: ${target_branch}"
-            (( delete_remote )) && _tv_git_branch_manage_delete_remote "${target_branch}" || true
+            if (( delete_remote )); then
+              gbm clean "${target_branch}" --apply --force || return 1
+            else
+              gbm clean "${target_branch}" --apply --force --keep-remote || return 1
+            fi
             ;;
           squash)
             if [[ "$(command git branch --show-current 2>/dev/null)" == "${target_branch}" ]]; then
