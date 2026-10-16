@@ -68,6 +68,5 @@ the branch lifecycle behind `gbm`.
 
 ## Branch and Merge Plan
 
-- [ ] Branch from `main` as `feat/m0005-interactive-operator-workflows`
-- [ ] Commit freely at verified checkpoints
-- [ ] Squash merge once the operator flows hold up in daily use
+- [x] Landed without a dedicated branch in this history; the operator
+  workflows, including `gbm`, arrived with `775d831` alongside M6

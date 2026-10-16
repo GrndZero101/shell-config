@@ -355,7 +355,11 @@ These ideas matter, but are not yet shaped enough to promote into active
 milestones:
 
 - secrets-management-aware shell workflows
-- stronger tmux integration
+- a reusable, opinionated tmux default belongs to dev-container-fortress,
+  modeled on the personal dotfiles `tmux-full` package (sesh, gitmux,
+  Catppuccin); tracked here only as a cross-project dependency. shell-config
+  adds zsh-side hooks (for example a `Ctrl-G` sesh shortcut) only when a
+  concrete need appears
 - WSL2 startup cost from Windows `PATH` entries: the first `$commands`
   lookup hashes about 40 `/mnt/c` directories (~100ms of `00-environment`);
   options include documenting `appendWindowsPath=false` or trimming `/mnt/*`

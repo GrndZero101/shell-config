@@ -73,6 +73,5 @@ be validated in isolation without depending on Dev Fortress.
 
 ## Branch and Merge Plan
 
-- [ ] Branch from `main` as `feat/m0007-shell-integration-test-harness`
-- [ ] Commit freely at verified checkpoints
-- [ ] Squash merge once the test harness is stable enough to become part of the development loop
+- [x] Landed without a dedicated branch in this history; the harness
+  arrived with `ed2d62f` alongside M6

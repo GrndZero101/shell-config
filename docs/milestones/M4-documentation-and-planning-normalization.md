@@ -28,15 +28,15 @@ as Dev Fortress while keeping shell-config-specific detail intact.
 
 ### M4-1 Normalize the top-level README
 
-- [ ] Problem: the current README is too wordy at the top and mixes front-door content with implementation detail
-- [ ] Scope: rebuild the README around overview, quick start, status, docs map, layout, and milestone framing
-- [ ] Acceptance: the README looks and feels consistent with Dev Fortress while staying truthful to shell-config
+- [x] Problem: the current README is too wordy at the top and mixes front-door content with implementation detail
+- [x] Scope: rebuild the README around overview, quick start, status, docs map, layout, and milestone framing
+- [x] Acceptance: the README looks and feels consistent with Dev Fortress while staying truthful to shell-config
 
 ### M4-2 Add roadmap and milestone drafts
 
-- [ ] Problem: shell-config lacks the roadmap and milestone planning split now used successfully in Dev Fortress
-- [ ] Scope: add `docs/ROADMAP.md` and `docs/milestones/`
-- [ ] Acceptance: strategy and execution planning are clearly separated
+- [x] Problem: shell-config lacks the roadmap and milestone planning split now used successfully in Dev Fortress
+- [x] Scope: add `docs/ROADMAP.md` and `docs/milestones/`
+- [x] Acceptance: strategy and execution planning are clearly separated
 
 ### M4-3 Retarget the documentation links
 
@@ -62,4 +62,5 @@ as Dev Fortress while keeping shell-config-specific detail intact.
 
 - [x] Branch from `main` as `docs/m0004-documentation-and-planning-normalization`
 - [x] Commit freely at verified checkpoints
-- [ ] Squash merge once the normalized planning and README surface are in place
+- [x] Landed without a dedicated branch in this history; the planning
+  surface arrived with `ed2d62f` alongside M6
