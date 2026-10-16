@@ -349,6 +349,33 @@ Non-goals:
 Details:
 [M9 draft](milestones/M9-hud-startup-diagnostics.md)
 
+### `M10` Shell Benchmarking
+
+Status: `next`
+
+Objective:
+Give `shell-config` a repeatable, low-spec benchmark of interactive shell
+latency, so new or changed features show their cost before they land.
+
+Exit criteria:
+
+- an opt-in runner benchmarks fortress with zsh-bench in a resource-capped
+  Docker container (default 0.5 CPU, 2 GB), with `zsh-clean` as a baseline
+- the run covers the real interactive stack: zinit plugins and `starship`
+- output reports first-prompt, first-command, command, and input lag against
+  the zsh-bench default thresholds
+- a baseline for `main` is recorded and docs explain when to run it
+
+Non-goals:
+
+- hard latency budgets or CI gating in this milestone
+- optimizing startup cost, or benchmarking host-specific costs such as WSL2
+  `PATH` hashing
+- full-stack tmux and toolset benchmarks, which belong to dev-container-fortress
+
+Details:
+[M10 draft](milestones/M10-shell-benchmarking.md)
+
 ## Idea Pool
 
 These ideas matter, but are not yet shaped enough to promote into active
