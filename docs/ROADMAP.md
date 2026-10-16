@@ -323,6 +323,32 @@ Non-goals:
 Details:
 [M8 draft](milestones/M8-curated-brew-module.md)
 
+### `M9` HUD Startup and Module Diagnostics
+
+Status: `done`
+
+Objective:
+Make `fortress-hud` explain how the shell actually started: where time went,
+which modules really loaded, and what went wrong.
+
+Exit criteria:
+
+- per-stage `.zshrc` timing and a total are visible in the HUD
+- each enabled module reports load status, load time, and what it added
+- guarded modules whose required command is absent read as `skipped`
+- missing or failing modules and a missing zinit install surface as warnings
+- `fortress-debug-interactive` shows the same recorded state
+- a condensed `--human` view exists for people while plain `fortress-hud`
+  stays the full agent view
+
+Non-goals:
+
+- full `zprof`-style profiling or timing outside `.zshrc`
+- optimizing startup time inside this milestone
+
+Details:
+[M9 draft](milestones/M9-hud-startup-diagnostics.md)
+
 ## Idea Pool
 
 These ideas matter, but are not yet shaped enough to promote into active
@@ -330,7 +356,13 @@ milestones:
 
 - secrets-management-aware shell workflows
 - stronger tmux integration
-- richer module-source and startup diagnostics in the HUD
+- WSL2 startup cost from Windows `PATH` entries: the first `$commands`
+  lookup hashes about 40 `/mnt/c` directories (~100ms of `00-environment`);
+  options include documenting `appendWindowsPath=false` or trimming `/mnt/*`
+  entries in the profile
+- `gbm land --ff-only` (or a squash land mode) for repos that keep a linear,
+  one-commit-per-milestone primary branch; `land` and `rewrite --land` only
+  `merge --no-ff` today, so landing M9 needed a manual fast-forward
 - interactive cleanup and recovery surfaces beyond git branches
 - profile-specific bootstrap shortcuts for ephemeral development environments
 - `brew` module support for non-Homebrew Brewfile ecosystems (`vscode`, `uv`,

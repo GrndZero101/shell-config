@@ -20,6 +20,7 @@ It should feel capable, polished, and information-rich without becoming an opaqu
 - Prompt style: configurable between `starship` and native fallback, with `auto` preferring `starship` first; keep the prompt-engine loader structured so future engines can be reintroduced without rewriting the whole prompt file
 - Icon usage: icons are allowed when the terminal and font support them, but should not reduce clarity
 - Status surfaces such as `fortress-hud --pretty` may use Catppuccin-tinted headings and Nerd Font icons, but should keep the standard renderer as the operational source of truth
+- The HUD serves two audiences: the full view (`fortress-hud`, plain by default) is the agent-facing, grep-friendly record and gets every new diagnostic first; the human view (`fortress-hud --human`, behind `Ctrl-G u`) shows only highlights and problems and points back to the full view for detail
 
 ## Tooling Principles
 

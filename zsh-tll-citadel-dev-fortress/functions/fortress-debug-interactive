@@ -53,6 +53,28 @@ fortress-debug-interactive-print-module-resolution() {
     print -r -- "  local_path: ${local_path}"
     print -r -- "  curated_path: ${curated_path}"
     print -r -- "  active_path: ${SHELL_FORTRESS_MODULE_ACTIVE_PATHS[${module_name}]-absent}"
+    print -r -- "  load_status: ${SHELL_FORTRESS_MODULE_LOAD_STATUS[${module_name}]-unrecorded}"
+    print -r -- "  load_ms: ${SHELL_FORTRESS_MODULE_LOAD_MS[${module_name}]-unrecorded}"
+    print -r -- "  added: ${SHELL_FORTRESS_MODULE_ADDED_FUNCTIONS[${module_name}]-0} functions, ${SHELL_FORTRESS_MODULE_ADDED_ALIASES[${module_name}]-0} aliases"
+  done
+}
+
+# Print recorded startup stage timings and warnings.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing the startup state.
+fortress-debug-interactive-print-startup() {
+  local stage_name warning_text
+
+  print -r -- '== Startup =='
+  print -r -- "zshrc_total_ms: ${SHELL_FORTRESS_STARTUP_TOTAL_MS:-unrecorded}"
+  for stage_name in "${SHELL_FORTRESS_STARTUP_STAGES[@]}"; do
+    print -r -- "${stage_name}_ms: ${SHELL_FORTRESS_STARTUP_STAGE_MS[${stage_name}]:-unrecorded}"
+  done
+  print -r -- "warnings: ${#SHELL_FORTRESS_STARTUP_WARNINGS[@]}"
+  for warning_text in "${SHELL_FORTRESS_STARTUP_WARNINGS[@]}"; do
+    print -r -- "  ${warning_text}"
   done
 }
 
@@ -125,6 +147,9 @@ fortress-debug-interactive() {
   print -r -- "SHELL_FORTRESS_ENABLE_FZF_TAB=${SHELL_FORTRESS_ENABLE_FZF_TAB:-unset}"
   print -r -- "SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS=${SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS:-unset}"
   print -r -- "SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE=${SHELL_FORTRESS_LOAD_ZSH_AUTOCOMPLETE:-unset}"
+
+  print -r -- ''
+  fortress-debug-interactive-print-startup
 
   print -r -- ''
   fortress-debug-interactive-print-module-resolution

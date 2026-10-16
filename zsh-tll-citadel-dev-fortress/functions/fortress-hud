@@ -139,25 +139,143 @@ fortress-hud-module-active-source() {
   print -r -- 'missing'
 }
 
+# Print the requires metadata from the active module file header.
+# Arguments:
+#   $1: module name.
+# Returns:
+#   0 after printing the space-separated requirement names, or nothing when
+#   the module has no active file or no requires header.
+# Side effects:
+#   Reads the leading comment block of the active module file.
+fortress-hud-module-requires() {
+  local module_path="${SHELL_FORTRESS_MODULE_ACTIVE_PATHS[$1]-}"
+  local header_line requires_value
+
+  [[ -r "${module_path}" ]] || return 0
+
+  while IFS= read -r header_line; do
+    [[ "${header_line}" == '# '* ]] || break
+    if [[ "${header_line}" == '# requires:'* ]]; then
+      requires_value="${header_line#'# requires:'}"
+      print -r -- ${=requires_value//,/ }
+      return 0
+    fi
+  done < "${module_path}"
+}
+
+# Print the startup load status for one enabled module.
+# A module that sourced cleanly but added no functions or aliases while a
+# required command is absent is reported as skipped, because curated modules
+# guard themselves with `(( $+commands[tool] )) || return 0`.
+# Arguments:
+#   $1: module name.
+# Returns:
+#   0 after printing loaded, skipped(missing:<cmds>), failed:<code>, missing,
+#   or unknown when startup recorded nothing.
+fortress-hud-module-status() {
+  local module_name="$1"
+  local load_status="${SHELL_FORTRESS_MODULE_LOAD_STATUS[${module_name}]-unknown}"
+  local required_name
+  local -a missing_commands
+
+  if [[ "${load_status}" == 'loaded' ]] \
+    && (( ${SHELL_FORTRESS_MODULE_ADDED_FUNCTIONS[${module_name}]:-0} + ${SHELL_FORTRESS_MODULE_ADDED_ALIASES[${module_name}]:-0} == 0 )); then
+    for required_name in ${=$(fortress-hud-module-requires "${module_name}")}; do
+      (( $+commands[${required_name}] )) || missing_commands+=("${required_name}")
+    done
+    if (( ${#missing_commands} )); then
+      load_status="skipped(missing:${(j:,:)missing_commands})"
+    fi
+  fi
+
+  print -r -- "${load_status}"
+}
+
 # Print one compact module-resolution summary line.
 # Arguments:
 #   $1: module name.
 # Returns:
-#   0 after printing the summary text.
+#   0 after printing the summary text: source and shadowing state, then load
+#   status, load time, functions and aliases added, and declared requirements.
 fortress-hud-module-summary() {
   local module_name="$1"
-  local active_source local_path curated_path shadow_state
+  local active_source local_path curated_path shadow_state requires_text
 
   active_source="$(fortress-hud-module-active-source "${module_name}")"
   local_path="${SHELL_FORTRESS_MODULE_LOCAL_PATHS[${module_name}]-${SHELL_FORTRESS_MODULES_DIR:-}/${module_name}.zsh}"
   curated_path="${SHELL_FORTRESS_MODULE_CURATED_PATHS[${module_name}]-${ZDOTDIR:-}/curated-modules/${module_name}/module.zsh}"
   shadow_state='no'
+  requires_text="$(fortress-hud-module-requires "${module_name}")"
 
   if [[ "${active_source}" == 'local-fork' ]]; then
     shadow_state='curated'
   fi
 
-  print -r -- "active=${active_source} shadowing=${shadow_state} local=$([[ -r "${local_path}" ]] && print -r -- present || print -r -- absent) curated=$([[ -r "${curated_path}" ]] && print -r -- present || print -r -- absent)"
+  print -r -- "active=${active_source} shadowing=${shadow_state} local=$([[ -r "${local_path}" ]] && print -r -- present || print -r -- absent) curated=$([[ -r "${curated_path}" ]] && print -r -- present || print -r -- absent) status=$(fortress-hud-module-status "${module_name}") load=${SHELL_FORTRESS_MODULE_LOAD_MS[${module_name}]:-?}ms adds=${SHELL_FORTRESS_MODULE_ADDED_FUNCTIONS[${module_name}]:-0}fn/${SHELL_FORTRESS_MODULE_ADDED_ALIASES[${module_name}]:-0}alias requires=${${requires_text// /,}:-none}"
+}
+
+# Print the slowest enabled module and its load time.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing `<name> (<ms>ms)`, or none when no load times exist.
+fortress-hud-slowest-module() {
+  local module_name slowest_name=''
+  local -F slowest_ms=-1
+
+  for module_name in ${(k)SHELL_FORTRESS_MODULE_LOAD_MS}; do
+    if (( SHELL_FORTRESS_MODULE_LOAD_MS[${module_name}] > slowest_ms )); then
+      slowest_ms="${SHELL_FORTRESS_MODULE_LOAD_MS[${module_name}]}"
+      slowest_name="${module_name}"
+    fi
+  done
+
+  if [[ -z "${slowest_name}" ]]; then
+    print -r -- 'none'
+    return 0
+  fi
+  print -r -- "${slowest_name} (${SHELL_FORTRESS_MODULE_LOAD_MS[${slowest_name}]}ms)"
+}
+
+# Print the startup timing and warnings section.
+# Arguments:
+#   $1: renderer mode, standard or pretty.
+# Returns:
+#   0 after printing the section.
+# Side effects:
+#   Writes HUD lines to stdout. Pretty mode escapes % in warning text so
+#   print -P does not treat paths as prompt sequences.
+fortress-hud-print-startup() {
+  local render_mode="$1"
+  local stage_name warning_text warnings_value
+
+  fortress-hud-section "${render_mode}" startup '󱎫' 'Startup'
+
+  # Shells that did not start through the fortress .zshrc have no timing tables.
+  if [[ "${(t)SHELL_FORTRESS_STARTUP_STAGE_MS}" != association* ]]; then
+    fortress-hud-line "${render_mode}" startup 'zshrc_total' 'unrecorded'
+    return 0
+  fi
+
+  fortress-hud-line "${render_mode}" startup 'zshrc_total' "${SHELL_FORTRESS_STARTUP_TOTAL_MS:-unknown}ms"
+  for stage_name in "${SHELL_FORTRESS_STARTUP_STAGES[@]}"; do
+    fortress-hud-line "${render_mode}" startup "${stage_name}" "${SHELL_FORTRESS_STARTUP_STAGE_MS[${stage_name}]:-?}ms"
+  done
+  fortress-hud-line "${render_mode}" startup 'slowest_module' "$(fortress-hud-slowest-module)"
+
+  warnings_value="${#SHELL_FORTRESS_STARTUP_WARNINGS[@]}"
+  if [[ "${render_mode}" == 'pretty' ]]; then
+    if (( ${#SHELL_FORTRESS_STARTUP_WARNINGS[@]} )); then
+      warnings_value="%F{221}${warnings_value}%f"
+    else
+      warnings_value="%F{114}${warnings_value}%f"
+    fi
+  fi
+  fortress-hud-line "${render_mode}" startup 'warnings' "${warnings_value}"
+  for warning_text in "${SHELL_FORTRESS_STARTUP_WARNINGS[@]}"; do
+    [[ "${render_mode}" == 'pretty' ]] && warning_text="%F{221}${warning_text//\%/%%}%f"
+    fortress-hud-line "${render_mode}" startup 'warning' "${warning_text}"
+  done
 }
 
 # Print the current branch lifecycle summary when gbm is available.
@@ -469,13 +587,170 @@ fortress-hud-container-state() {
   fi
 }
 
+# Print the two slowest startup stages for the human view.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing `<stage> <ms>ms, <stage> <ms>ms`, or nothing when no
+#   timings were recorded.
+fortress-hud-slowest-stages() {
+  local stage_name ranked_entry
+  local -a ranked labels
+
+  [[ "${(t)SHELL_FORTRESS_STARTUP_STAGE_MS}" == association* ]] || return 0
+
+  for stage_name in ${(k)SHELL_FORTRESS_STARTUP_STAGE_MS}; do
+    ranked+=("${SHELL_FORTRESS_STARTUP_STAGE_MS[${stage_name}]}:${stage_name}")
+  done
+  ranked=("${(@On)ranked}")
+  for ranked_entry in "${(@)ranked[1,2]}"; do
+    labels+=("${ranked_entry#*:} ${ranked_entry%%:*}ms")
+  done
+  print -r -- "${(j:, :)labels}"
+}
+
+# Print enabled modules as one glyph-tagged line for the human view.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing the module list, or `none`.
+# Side effects:
+#   Emits prompt color sequences for print -P.
+fortress-hud-human-modules() {
+  local module_name module_status active_source source_note
+  local -a module_cells
+
+  for module_name in "${SHELL_FORTRESS_EFFECTIVE_MODULES[@]}"; do
+    module_status="$(fortress-hud-module-status "${module_name}")"
+    active_source="$(fortress-hud-module-active-source "${module_name}")"
+    case "${active_source}" in
+      local-fork) source_note=' (fork)' ;;
+      local-only) source_note=' (local)' ;;
+      *) source_note='' ;;
+    esac
+    case "${module_status}" in
+      loaded) module_cells+=("%F{114}✓%f ${module_name}${source_note}") ;;
+      skipped*) module_cells+=("%F{244}⊘ ${module_name}${source_note} ${module_status#skipped}%f") ;;
+      *) module_cells+=("%F{203}✗ ${module_name}${source_note} ${module_status}%f") ;;
+    esac
+  done
+
+  print -r -- "${(j:  :)module_cells:-none}"
+}
+
+# Print settings whose value did not come from the profile default.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing `name=value (source)` pairs, or `all defaults`.
+fortress-hud-human-settings() {
+  local row setting_name value_name source_name source_label value_text
+  local -a rows changed
+
+  rows=(
+    "native_git:SHELL_FORTRESS_ENABLE_NATIVE_GIT:SHELL_FORTRESS_SOURCE_ENABLE_NATIVE_GIT"
+    "zsh_vi_mode:SHELL_FORTRESS_ENABLE_ZSH_VI_MODE:SHELL_FORTRESS_SOURCE_ENABLE_ZSH_VI_MODE"
+    "zsh_autocomplete:SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE:SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOCOMPLETE"
+    "zsh_autosuggestions:SHELL_FORTRESS_ENABLE_ZSH_AUTOSUGGESTIONS:SHELL_FORTRESS_SOURCE_ENABLE_ZSH_AUTOSUGGESTIONS"
+    "fzf_tab:SHELL_FORTRESS_ENABLE_FZF_TAB:SHELL_FORTRESS_SOURCE_ENABLE_FZF_TAB"
+    "atuin:SHELL_FORTRESS_ENABLE_ATUIN:SHELL_FORTRESS_SOURCE_ENABLE_ATUIN"
+    "histsize:HISTSIZE:SHELL_FORTRESS_SOURCE_HISTSIZE"
+    "savehist:SAVEHIST:SHELL_FORTRESS_SOURCE_SAVEHIST"
+    "keytimeout:KEYTIMEOUT:SHELL_FORTRESS_SOURCE_KEYTIMEOUT"
+    "prompt_engine:SHELL_FORTRESS_CONFIGURED_PROMPT_ENGINE:SHELL_FORTRESS_SOURCE_PROMPT_ENGINE"
+    "editor:EDITOR:SHELL_FORTRESS_SOURCE_EDITOR"
+  )
+
+  for row in "${rows[@]}"; do
+    setting_name="${row%%:*}"
+    value_name="${${row#*:}%%:*}"
+    source_name="${row##*:}"
+    source_label="${(P)source_name:-default}"
+    [[ "${source_label}" == 'default' ]] && continue
+    value_text="${(P)value_name:-unset}"
+    if [[ "${value_name}" == SHELL_FORTRESS_ENABLE_* ]]; then
+      (( value_text )) && value_text='on' || value_text='off'
+    fi
+    changed+=("${setting_name}=${value_text} (${source_label})")
+  done
+
+  print -r -- "${(j:, :)changed:-all defaults}"
+}
+
+# Print the condensed human HUD: highlights and problems only.
+# Arguments:
+#   $1: runtime context label.
+# Returns:
+#   0 after printing the view.
+# Side effects:
+#   Writes Catppuccin-tinted lines to stdout. Escapes % in warning text and
+#   paths so print -P does not treat them as prompt sequences.
+fortress-hud-print-human() {
+  local runtime_context="$1"
+  local startup_text slowest_text warning_text branch_text branch_state brewfile_text tool_name
+  local -a missing_tools
+
+  fortress-hud-print-pretty-heading '󰒓' "${SHELL_PROFILE_NAME:-unknown}  %F{244}${runtime_context} · prompt ${SHELL_FORTRESS_ACTIVE_PROMPT_ENGINE:-unset}%f"
+
+  if [[ -n "${SHELL_FORTRESS_STARTUP_TOTAL_MS:-}" ]]; then
+    startup_text="${SHELL_FORTRESS_STARTUP_TOTAL_MS}ms"
+    slowest_text="$(fortress-hud-slowest-stages)"
+    [[ -n "${slowest_text}" ]] && startup_text+=" %F{244}(slowest: ${slowest_text})%f"
+  else
+    startup_text='unrecorded'
+  fi
+  fortress-hud-print-pretty-line '󱎫 startup' "${startup_text}"
+
+  if (( ${#SHELL_FORTRESS_STARTUP_WARNINGS[@]} )); then
+    fortress-hud-print-pretty-line ' warnings' "%F{221}${#SHELL_FORTRESS_STARTUP_WARNINGS[@]}%f"
+    for warning_text in "${SHELL_FORTRESS_STARTUP_WARNINGS[@]}"; do
+      print -P -- "    %F{221}• ${warning_text//\%/%%}%f"
+    done
+  else
+    fortress-hud-print-pretty-line ' warnings' '%F{114}none%f'
+  fi
+
+  fortress-hud-print-pretty-line '󰈔 modules' "$(fortress-hud-human-modules)"
+  fortress-hud-print-pretty-line '󰘳 settings' "$(fortress-hud-human-settings)"
+
+  for tool_name in git fzf atuin starship eza zoxide direnv; do
+    (( $+commands[${tool_name}] )) || missing_tools+=("${tool_name}")
+  done
+  if (( ${#missing_tools} )); then
+    fortress-hud-print-pretty-line ' tools' "%F{221}not installed: ${(j:, :)missing_tools}%f"
+  else
+    fortress-hud-print-pretty-line ' tools' '%F{114}all present%f'
+  fi
+
+  branch_text="$(fortress-hud-branch-lifecycle-summary)"
+  case "${branch_text}" in
+    git-missing|not-in-repo|gbm-unavailable) ;;
+    *)
+      branch_state="${branch_text#* state=}"
+      branch_text="${branch_text%% state=*}"
+      fortress-hud-print-pretty-line ' branch' "${branch_text} %F{244}(${branch_state% ${branch_text}})%f"
+      ;;
+  esac
+
+  if (( $+functions[brew-file] )); then
+    brewfile_text="$(fortress-hud-brewfile-summary)"
+    [[ "${brewfile_text}" == missing* ]] && brewfile_text="%F{203}${brewfile_text//\%/%%}%f" || brewfile_text="${brewfile_text//\%/%%}"
+    fortress-hud-print-pretty-line ' brewfile' "${brewfile_text}"
+  fi
+
+  print -P -- '  %F{244}full detail: fortress-hud · fortress-hud --env · fortress-debug-interactive%f'
+}
+
 # Print the fortress HUD.
 # Arguments:
-#   $@ - Optional flags: --standard, --pretty, and --env.
+#   $@ - Optional flags: --standard (full, plain; the default and the
+#        agent-facing view), --pretty (full, styled), --human (condensed,
+#        styled), and --env (adds env mapping to the full views).
 # Returns:
 #   0 after printing the HUD, non-zero on invalid arguments.
 # Side effects:
-#   Reads shell state, zle state, zstyles, and command availability.
+#   Reads shell state, zle state, zstyles, command availability, recorded
+#   startup diagnostics, and enabled module file headers.
 fortress-hud() {
   autoload -Uz fortress-operator-binding-specs
 
@@ -510,16 +785,24 @@ fortress-hud() {
       --pretty)
         render_mode='pretty'
         ;;
+      --human)
+        render_mode='human'
+        ;;
       --env)
         show_env_section=1
         ;;
       *)
         print -u2 -- "fortress-hud: unknown argument: ${arg}"
-        print -u2 -- 'usage: fortress-hud [--standard|--pretty] [--env]'
+        print -u2 -- 'usage: fortress-hud [--standard|--pretty|--human] [--env]'
         return 1
         ;;
     esac
   done
+
+  if [[ "${render_mode}" == 'human' ]] && (( show_env_section )); then
+    print -u2 -- 'fortress-hud: --env needs a full view; use --standard or --pretty'
+    return 1
+  fi
 
   if [[ -n "${SSH_CONNECTION:-}${SSH_CLIENT:-}" ]]; then
     runtime_context='ssh'
@@ -535,6 +818,11 @@ fortress-hud() {
 
   if [[ -o interactive ]]; then
     runtime_context="${runtime_context}+interactive"
+  fi
+
+  if [[ "${render_mode}" == 'human' ]]; then
+    fortress-hud-print-human "${runtime_context}"
+    return 0
   fi
 
   if (( ${#SHELL_FORTRESS_EFFECTIVE_MODULES[@]:-0} )); then
@@ -611,6 +899,9 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" profile 'runtime_context' "${runtime_context}"
   fortress-hud-line "${render_mode}" profile 'container' "$(fortress-hud-container-state)"
   fortress-hud-line "${render_mode}" profile 'keymap' "${keymap_value}"
+  fortress-hud-blank
+
+  fortress-hud-print-startup "${render_mode}"
   fortress-hud-blank
 
   fortress-hud-section "${render_mode}" settings '󰘳' 'Settings'

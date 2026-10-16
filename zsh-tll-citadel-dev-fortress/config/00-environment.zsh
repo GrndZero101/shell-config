@@ -371,6 +371,11 @@ typeset -gA SHELL_FORTRESS_MODULE_ACTIVE_SOURCES
 typeset -gA SHELL_FORTRESS_MODULE_ACTIVE_PATHS
 typeset -gA SHELL_FORTRESS_MODULE_LOCAL_PATHS
 typeset -gA SHELL_FORTRESS_MODULE_CURATED_PATHS
+typeset -gA SHELL_FORTRESS_MODULE_LOAD_STATUS
+typeset -gA SHELL_FORTRESS_MODULE_LOAD_MS
+typeset -gA SHELL_FORTRESS_MODULE_ADDED_FUNCTIONS
+typeset -gA SHELL_FORTRESS_MODULE_ADDED_ALIASES
+typeset -ga SHELL_FORTRESS_STARTUP_WARNINGS
 
 SHELL_FORTRESS_DEFAULT_MODULES=(${SHELL_PROFILE_DEFAULT_MODULES[@]:-})
 SHELL_FORTRESS_DEFAULT_MODULES=(${(u)SHELL_FORTRESS_DEFAULT_MODULES})
@@ -504,25 +509,41 @@ fortress-register-alias-source() {
   done
 }
 
+# Record one startup warning for fortress-hud and fortress-debug-interactive.
+# Arguments:
+#   $1: warning text.
+# Returns:
+#   0 after recording the warning.
+# Side effects:
+#   Appends to SHELL_FORTRESS_STARTUP_WARNINGS.
+fortress-record-startup-warning() {
+  SHELL_FORTRESS_STARTUP_WARNINGS+=("$1")
+}
+
 # Source one user-owned fortress module file when it exists.
 # Arguments:
 #   $1: module name without extension.
 # Returns:
-#   0 when absent or loaded successfully, otherwise 1.
+#   0 when the module loads successfully, otherwise 1.
 # Side effects:
-#   Sources the matching module file, falls back to a repo-curated module when
-#   available, and prints warnings only when no module source exists.
+#   Sources the local module file, or falls back to a repo-curated module and
+#   prepends its functions directory to fpath. Records active source and path,
+#   load status (loaded, failed:<code>, or missing), load time, and the number
+#   of functions and aliases the module added. Prints a warning only when no
+#   module source exists; failures are recorded as startup warnings.
 fortress-source-local-module() {
   local module_name="$1"
   local module_path
   local curated_module_path
   local curated_functions_dir
+  local active_path
   local alias_name
+  local load_begin load_ms
+  local -i load_exit=0 functions_before
   local -A aliases_before aliases_after
 
   [[ -n "${module_name}" ]] || return 0
 
-  aliases_before=("${(@kv)aliases}")
   module_path="${SHELL_FORTRESS_MODULES_DIR}/${module_name}.zsh"
   curated_module_path="${ZDOTDIR}/curated-modules/${module_name}/module.zsh"
   curated_functions_dir="${ZDOTDIR}/curated-modules/${module_name}/functions"
@@ -545,40 +566,50 @@ fortress-source-local-module() {
     else
       SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]='local-only'
     fi
-    SHELL_FORTRESS_MODULE_ACTIVE_PATHS[${module_name}]="${module_path}"
-    source "${module_path}"
-    aliases_after=("${(@kv)aliases}")
-    for alias_name in ${(@k)aliases_after}; do
-      if [[ "${aliases_before[${alias_name}]-}" != "${aliases_after[${alias_name}]}" ]]; then
-        SHELL_FORTRESS_ALIAS_SOURCES[${alias_name}]="module:${module_name}"
-      fi
-    done
-    return 0
-  fi
-
-  if [[ -r "${curated_module_path}" ]]; then
+    active_path="${module_path}"
+  elif [[ -r "${curated_module_path}" ]]; then
     SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]='curated'
-    SHELL_FORTRESS_MODULE_ACTIVE_PATHS[${module_name}]="${curated_module_path}"
+    active_path="${curated_module_path}"
     if [[ -d "${curated_functions_dir}" ]]; then
       fpath=(
         "${curated_functions_dir}"
         ${fpath}
       )
     fi
-    source "${curated_module_path}"
-    aliases_after=("${(@kv)aliases}")
-    for alias_name in ${(@k)aliases_after}; do
-      if [[ "${aliases_before[${alias_name}]-}" != "${aliases_after[${alias_name}]}" ]]; then
-        SHELL_FORTRESS_ALIAS_SOURCES[${alias_name}]="module:${module_name}"
-      fi
-    done
-    return 0
+  else
+    SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]='missing'
+    SHELL_FORTRESS_MODULE_LOAD_STATUS[${module_name}]='missing'
+    unset "SHELL_FORTRESS_MODULE_ACTIVE_PATHS[${module_name}]"
+    fortress-record-startup-warning "module ${module_name}: not found at ${module_path}"
+    print -u2 -r -- "fortress: local module '${module_name}' not found at ${module_path}"
+    return 1
   fi
 
-  SHELL_FORTRESS_MODULE_ACTIVE_SOURCES[${module_name}]='missing'
-  unset "SHELL_FORTRESS_MODULE_ACTIVE_PATHS[${module_name}]"
-  print -u2 -r -- "fortress: local module '${module_name}' not found at ${module_path}"
-  return 1
+  SHELL_FORTRESS_MODULE_ACTIVE_PATHS[${module_name}]="${active_path}"
+  aliases_before=("${(@kv)aliases}")
+  functions_before=${#functions}
+  load_begin="${EPOCHREALTIME}"
+  source "${active_path}" || load_exit=$?
+  printf -v load_ms '%.1f' "$(( (EPOCHREALTIME - load_begin) * 1000 ))"
+
+  SHELL_FORTRESS_MODULE_LOAD_MS[${module_name}]="${load_ms}"
+  SHELL_FORTRESS_MODULE_ADDED_FUNCTIONS[${module_name}]=$(( ${#functions} - functions_before ))
+  aliases_after=("${(@kv)aliases}")
+  SHELL_FORTRESS_MODULE_ADDED_ALIASES[${module_name}]=0
+  for alias_name in ${(@k)aliases_after}; do
+    if [[ "${aliases_before[${alias_name}]-}" != "${aliases_after[${alias_name}]}" ]]; then
+      SHELL_FORTRESS_ALIAS_SOURCES[${alias_name}]="module:${module_name}"
+      (( SHELL_FORTRESS_MODULE_ADDED_ALIASES[${module_name}] += 1 ))
+    fi
+  done
+
+  if (( load_exit )); then
+    SHELL_FORTRESS_MODULE_LOAD_STATUS[${module_name}]="failed:${load_exit}"
+    fortress-record-startup-warning "module ${module_name}: ${active_path} exited with status ${load_exit}"
+    return 1
+  fi
+
+  SHELL_FORTRESS_MODULE_LOAD_STATUS[${module_name}]='loaded'
 }
 
 # Source each enabled user-owned fortress module.

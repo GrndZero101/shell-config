@@ -90,7 +90,7 @@ running the bootstrap.
 ```sh
 csm select zsh-tll-citadel-dev-fortress
 exec zsh
-fortress-hud --pretty
+fortress-hud --human
 csm list-modules
 ```
 
@@ -181,7 +181,7 @@ Working today:
 - native and reference `zsh` profiles
 - fortress HUD, debug, operator prefix, and git helper surfaces
 - curated module lifecycle with direct enable, local fork install, and sync
-- live module-resolution visibility in `fortress-hud` and `fortress-debug-interactive`
+- live module-resolution, module load-status, and startup-timing visibility in `fortress-hud` and `fortress-debug-interactive`
 - `csm reset-profile` for clean-state testing and recovery
 - `csm docs` for reading profile and module docs in the terminal, rendered with `glow` when installed
 - an opt-in curated `brew` module that keeps a git-tracked Brewfile as the source of truth, with tab completion

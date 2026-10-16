@@ -33,6 +33,8 @@ if fortress-bootstrap-zinit; then
   # Syntax highlighting should load after the rest of the interactive stack.
   zinit ice wait lucid
   zinit light zsh-users/zsh-syntax-highlighting
+else
+  fortress-record-startup-warning "zinit missing at ${SHELL_PROFILE_ZINIT_HOME}; plugins skipped (run: csm install-zinit)"
 fi
 
 if (( ! SHELL_FORTRESS_ENABLE_ZSH_VI_MODE )) && (( SHELL_FORTRESS_ENABLE_ATUIN )) && (( $+commands[atuin] )); then

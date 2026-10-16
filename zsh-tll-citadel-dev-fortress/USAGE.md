@@ -68,7 +68,7 @@ Use the shared platform support guide for the current truth source:
 | `Ctrl-G p`      | run `csm select -i`                       | requires an empty command line to avoid clobbering typed input |
 | `Ctrl-G a`      | run `alias-list -i`                       | requires an empty command line to avoid clobbering typed input |
 | `Ctrl-G f`      | insert `alias-find ` into the command line | fortress operator prefix; type a query after the chord |
-| `Ctrl-G u`      | run `fortress-hud --pretty`               | fast runtime overview; requires an empty command line |
+| `Ctrl-G u`      | run `fortress-hud --human`                | condensed runtime overview; requires an empty command line |
 | `Ctrl-G d`      | run `fortress-debug-interactive`          | fast widget and keybind debug view; requires an empty command line |
 | `vv`            | edit the current command line in `$EDITOR` | only when `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` |
 | `gx`            | open the URL or file path under cursor    | only when `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` |
@@ -288,7 +288,7 @@ tv-git-branches-manage --action checkout --force -- --input 'main' --take-1
 | `alias-find` | search the live alias table by alias name or expansion text |
 | `zsh-profile-select` | open the interactive profile selector via `csm` |
 | `fortress-keybinds` | print the fortress keybinding cheat sheet |
-| `fortress-hud` | print a profile HUD with resolved settings, feature state, tools, runtime wiring, key paths, and optional env-variable mapping details |
+| `fortress-hud` | print the full profile HUD (startup timing and warnings, resolved settings, feature state, module load outcomes, tools, runtime wiring, key paths, optional env-variable mapping); `--human` prints a condensed highlights view |
 | `fortress-debug-interactive` | print live widget and keybinding state for troubleshooting `Tab`, `fzf-tab`, `zsh-vi-mode`, and autosuggestion behavior |
 | `web_search` | search the web through fortress-managed search engines |
 
@@ -307,7 +307,7 @@ csm docs
 
 Recommended first-response flow:
 
-- `fortress-hud` to confirm tool detection, enabled local modules, module resolution, paths, and runtime state
+- `fortress-hud` to confirm startup warnings, tool detection, enabled local modules, module resolution and load status, paths, and runtime state
 - `fortress-debug-interactive` to inspect keybindings, widgets, and interactive shell wiring
 - `csm list-modules` to see curated versus local module state at a glance
 - `csm describe-module <name>` to check whether a user-local override is shadowing a curated module
@@ -318,6 +318,51 @@ Recommended first-response flow:
 > shadowing before assuming the helper implementation is broken. A user-local
 > module under `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config.local/.../modules`
 > takes precedence over the repo-curated module of the same name.
+
+### HUD views
+
+| Command | View | Audience |
+| --- | --- | --- |
+| `fortress-hud` (or `--standard`) | full, plain `[section] key: value` lines | agents and scripts; grep-friendly and stable |
+| `fortress-hud --pretty` | full, Catppuccin headings and Nerd Font icons | humans who want every detail |
+| `fortress-hud --human` (`Ctrl-G u`) | condensed: startup total and two slowest stages, warnings, module glyphs, non-default settings, missing tools, branch, Brewfile | humans at a glance |
+
+`--env` adds the env mapping table to either full view; `--human --env` is rejected. In the human view, `✓` marks a loaded module, `⊘` a skipped one, and `✗` a failed or missing one; `(local)` and `(fork)` mark user-local sources.
+
+> [!TIP]
+> Agents should parse plain `fortress-hud`, never `--human`: the human view is
+> free to change shape, while full-view keys stay stable.
+
+### Startup and module diagnostics
+
+`fortress-hud` opens with a `[startup]` section recorded while `.zshrc` ran:
+
+| Line | Meaning |
+| --- | --- |
+| `zshrc_total` | wall-clock time for the whole `.zshrc`, from `profile.zsh` to the end of `70-plugins` |
+| `00-environment` … `70-plugins` | time spent in each `config/*.zsh` stage; enabled modules load inside `60-tools` |
+| `slowest_module` | the enabled module with the longest load time |
+| `warnings` / `warning` | count, then one line per problem: a missing or failing module, or zinit not installed |
+
+Each `[module_resolution]` line ends with the recorded load outcome:
+
+```text
+[module_resolution] brew: active=curated shadowing=no local=absent curated=present status=loaded load=0.3ms adds=13fn/6alias requires=brew
+```
+
+| `status=` | Meaning |
+| --- | --- |
+| `loaded` | the module sourced and returned 0 |
+| `skipped(missing:<cmds>)` | it returned 0 but added no functions or aliases, and a command named in its `# requires:` header is not on `PATH`; curated modules guard themselves this way |
+| `failed:<code>` | sourcing returned non-zero; also listed under `[startup] warning` |
+| `missing` | neither a local nor a curated source exists |
+
+`adds=` counts the functions (autoload stubs included) and aliases the module defined. `fortress-debug-interactive` prints the same raw values under `== Startup ==` and in each module's `== Module Resolution ==` block.
+
+> [!NOTE]
+> Timings cover `.zshrc` only. `.zshenv`, `.zprofile`, and zinit turbo plugins
+> loaded with `wait` (autosuggestions, syntax highlighting) run outside that
+> window. For a whole-shell figure, time `zsh -i -c exit`.
 
 ### Default Aliases
 
@@ -426,7 +471,7 @@ They also show a `source` column so you can quickly see whether an alias came fr
 - Interactive switch command: `zsh-profile-select`
 - Direct switch command: `csm select zsh-tll-citadel-dev-fortress` or another profile name
 - Clean switch command: `zsh-profile-select --clean` or `csm select --clean`
-- HUD command: `fortress-hud` for standard mode, `fortress-hud --pretty` for the Catppuccin/Nerd Font renderer, and `fortress-hud --env` to include exact env and persistent variable mappings
+- HUD command: `fortress-hud` for the full plain view (agent-facing), `fortress-hud --pretty` for the full Catppuccin/Nerd Font view, `fortress-hud --human` for a condensed highlights view, and `--env` with either full view to include exact env and persistent variable mappings
 - Interactive debug command: `fortress-debug-interactive`
 - Notes about environment isolation: normal mode is fast and preserves most inherited environment; clean mode resets into a curated minimal environment and is better when you want to avoid variable bleed from another profile
 
