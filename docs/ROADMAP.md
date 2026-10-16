@@ -360,10 +360,12 @@ milestones:
   Catppuccin); tracked here only as a cross-project dependency. shell-config
   adds zsh-side hooks (for example a `Ctrl-G` sesh shortcut) only when a
   concrete need appears
-- WSL2 startup cost from Windows `PATH` entries: the first `$commands`
-  lookup hashes about 40 `/mnt/c` directories (~100ms of `00-environment`);
-  options include documenting `appendWindowsPath=false` or trimming `/mnt/*`
-  entries in the profile
+- WSL2 startup cost from Windows `PATH` entries (accepted, 2026-10-16): the
+  first `$commands` lookup hashes about 40 `/mnt/c` directories, about 100ms
+  of `00-environment`. This is acceptable and not an issue on the current
+  development workstation. Revisit only if startup time becomes a problem;
+  options then are `appendWindowsPath=false` in `/etc/wsl.conf` or trimming
+  `/mnt/*` entries in the profile
 - `gbm land --ff-only` (or a squash land mode) for repos that keep a linear,
   one-commit-per-milestone primary branch; `land` and `rewrite --land` only
   `merge --no-ff` today, so landing M9 needed a manual fast-forward

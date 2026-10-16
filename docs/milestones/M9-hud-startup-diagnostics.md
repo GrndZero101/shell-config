@@ -100,8 +100,9 @@ by hand.
   `loaded` with zero warnings
 - [x] Dogfooding finding: `00-environment` takes about 110ms of a roughly
   240ms `.zshrc` because the first `$commands` lookup hashes a `PATH` holding
-  40 WSL `/mnt/c` entries (99ms, versus 2.5ms without them); recorded in the
-  roadmap idea pool
+  40 WSL `/mnt/c` entries (99ms, versus 2.5ms without them); assessed as
+  acceptable for the current workstation and recorded in the roadmap idea
+  pool for revisiting only if startup time becomes a problem
 
 ## Branch and Merge Plan
 
