@@ -1,0 +1,49 @@
+# Converge the host on the Brewfile: update, install, review drift, upgrade, tidy.
+#
+# Arguments:
+#   $@ - Optional flags forwarded to `brew upgrade`, for example --greedy.
+# Returns:
+#   0 on success, 1 on a missing Brewfile or any failed step.
+# Side effects:
+#   Updates Homebrew, installs declared packages, upgrades outdated packages,
+#   and prunes caches. Undeclared formulae, casks, and taps are only removed
+#   after an explicit `y` at the prompt; that removal also resets Homebrew's
+#   global trust store to the Brewfile's declarations. Other Brewfile types
+#   (winget, vscode, uv, ...) are installed if declared but never removed.
+brew-sync() {
+  emulate -L zsh
+
+  local bf undeclared
+
+  bf="$(brew-file)" || return 1
+
+  print -r -- '==> brew update'
+  brew update || return 1
+
+  print -r -- "==> brew bundle install (${bf})"
+  # --no-upgrade leaves upgrades to the explicit step below so "$@" applies.
+  brew bundle install --file="${bf}" --no-upgrade || return 1
+
+  print -r -- '==> Drift check'
+  undeclared="$(brew-undeclared "${bf}")" || return 1
+  if [[ -n "${undeclared}" ]]; then
+    print -r -- "${undeclared}"
+    # -u 0 reads the answer from stdin, so a closed or non-tty stdin is a "no".
+    if read -q -u 0 '?Remove undeclared packages (also resets Homebrew trust to the Brewfile)? [y/N] '; then
+      print
+      brew bundle cleanup --file="${bf}" --formula --cask --tap --force || return 1
+    else
+      print
+      print -r -- 'Kept undeclared packages; declare the ones you want with brew-add.'
+    fi
+  else
+    print -r -- 'Nothing undeclared'
+  fi
+
+  print -r -- '==> brew upgrade'
+  brew upgrade "$@" || return 1
+
+  print -r -- '==> brew autoremove && brew cleanup --prune=all'
+  brew autoremove || return 1
+  brew cleanup --prune=all
+}

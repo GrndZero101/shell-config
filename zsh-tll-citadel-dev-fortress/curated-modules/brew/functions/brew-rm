@@ -1,0 +1,46 @@
+# Uninstall packages and remove their Brewfile declarations.
+#
+# Arguments:
+#   --cask   Optional leading flag; treat every name as a cask.
+#   $@       One or more package names.
+# Returns:
+#   0 on success, 1 on a missing Brewfile or brew failure, 2 on usage errors.
+# Side effects:
+#   Uninstalls each installed name; a declared but not installed name only
+#   loses its declaration. Removes the Homebrew description comment above the
+#   entry, then the entry via `brew bundle remove` (both edit in place, so a
+#   symlinked Brewfile stays a symlink), and finally runs brew autoremove once.
+brew-rm() {
+  emulate -L zsh
+
+  local kind='brew'
+  local bf name
+  local -a type_flags=(--formula)
+
+  if [[ "${1:-}" == '--cask' ]]; then
+    kind='cask'
+    type_flags=(--cask)
+    shift
+  fi
+
+  (( $# )) || {
+    print -u2 -- 'usage: brew-rm [--cask] <name>...'
+    return 2
+  }
+
+  bf="$(brew-file)" || return 1
+
+  for name in "$@"; do
+    if brew list "${type_flags[@]}" --versions -- "${name}" >/dev/null 2>&1; then
+      brew uninstall "${type_flags[@]}" -- "${name}" || return 1
+    else
+      print -r -- "not installed: ${name}; removing the declaration only"
+    fi
+
+    brew-drop-description "${bf}" "${kind}" "${name}"
+    brew bundle remove --file="${bf}" "${type_flags[@]}" -- "${name}" || return 1
+    print -r -- "undeclared: ${kind} \"${name}\""
+  done
+
+  brew autoremove
+}

@@ -48,6 +48,7 @@ It should feel capable, polished, and information-rich without becoming an opaqu
 - Treat `zsh-vi-mode` plus `zsh-autocomplete` as an experimental pairing that requires eager vi-mode initialization and careful plugin ordering.
 - When Atuin is enabled with `zsh-vi-mode`, follow Atuin's documented `zvm_after_init_commands` integration pattern instead of initializing it blindly ahead of vi-mode setup.
 - For Atuin theming, vendor the exact official Catppuccin Mocha asset and use Atuin's native theme loading mechanism through `ATUIN_THEME_DIR`.
+- For glow and other glamour renderers, vendor the official `catppuccin/glamour` Mocha JSON and export `GLAMOUR_STYLE`, never overriding a user value or the user's own `glow.yml`; repo-owned renderers such as `csm docs` pass the style explicitly because glow's CLI does not read the variable.
 - Use a profile-local `ATUIN_CONFIG_DIR` and `ATUIN_THEME_DIR` together for fortress when Atuin is enabled; prioritize observed shell behavior over potentially misleading output from auxiliary Atuin info commands.
 - Keep fortress persistent settings outside the repo tree so a default clone at `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config` does not mix user preferences with tracked files.
 - When `zsh-autocomplete` is enabled, let it own `compinit` and primary completion flow instead of trying to blend it with `fzf-tab`.

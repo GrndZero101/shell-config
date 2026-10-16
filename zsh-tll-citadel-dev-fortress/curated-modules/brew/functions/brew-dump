@@ -1,0 +1,75 @@
+# Print, or write, a Brewfile snapshot of what is installed on this host.
+#
+# Defaults to traditional Homebrew types (formulae, casks, taps). Other
+# ecosystems are opt-in; a type the host cannot use (mas off macOS, winget
+# off WSL, flatpak off Linux) simply dumps nothing.
+#
+# Arguments:
+#   --with <types>  Comma-separated extras, repeatable: mas, vscode, go,
+#                   cargo, uv, flatpak, winget, krew, npm, or all.
+#   --write         Overwrite the active Brewfile (see brew-file) in place
+#                   instead of printing to stdout.
+# Returns:
+#   0 on success, 1 on a missing Brewfile or brew failure, 2 on usage errors.
+# Side effects:
+#   With --write, replaces the Brewfile contents, dropping hand-written
+#   comments. The dump is captured first, so a failed dump leaves the file
+#   untouched, and the in-place write keeps a symlinked Brewfile a symlink.
+brew-dump() {
+  emulate -L zsh
+
+  local usage_text='usage: brew-dump [--with <type>[,<type>...]]... [--write]'
+  local -a known_extras=(mas vscode go cargo uv flatpak winget krew npm)
+  local -a type_flags=(--formula --cask --tap) requested
+  local write_mode=0
+  local extra bf dump_output
+
+  while (( $# )); do
+    case "$1" in
+      --with)
+        (( $# >= 2 )) || { print -u2 -- "${usage_text}"; return 2; }
+        requested+=("${(@s:,:)2}")
+        shift 2
+        ;;
+      --with=*)
+        requested+=("${(@s:,:)${1#--with=}}")
+        shift
+        ;;
+      --write)
+        write_mode=1
+        shift
+        ;;
+      -h|--help)
+        print -r -- "${usage_text}"
+        print -r -- "extras: ${(j:, :)known_extras}, all"
+        return 0
+        ;;
+      *)
+        print -u2 -- "${usage_text}"
+        return 2
+        ;;
+    esac
+  done
+
+  for extra in "${requested[@]}"; do
+    if [[ "${extra}" == 'all' ]]; then
+      type_flags+=(--${^known_extras})
+    elif (( ${known_extras[(Ie)${extra}]} )); then
+      type_flags+=("--${extra}")
+    else
+      print -u2 -- "brew-dump: unknown type: ${extra} (expected: ${(j:, :)known_extras}, all)"
+      return 2
+    fi
+  done
+  type_flags=("${(@u)type_flags}")
+
+  if (( ! write_mode )); then
+    brew bundle dump --file=- "${type_flags[@]}"
+    return
+  fi
+
+  bf="$(brew-file)" || return 1
+  dump_output="$(brew bundle dump --file=- "${type_flags[@]}")" || return 1
+  print -r -- "${dump_output}" >| "${bf}"
+  print -u2 -r -- "brew-dump: wrote ${bf}; review with git diff before committing"
+}

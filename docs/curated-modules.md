@@ -22,12 +22,25 @@ For the lifecycle model behind that rule, see
 | Module | Purpose | Requires | Host expectations | Recommended default |
 | --- | --- | --- | --- | --- |
 | `aws` | AWS profile, identity, login-mode, and login helpers | `aws` | Best on workstation-style hosts with AWS CLI configured; should work anywhere the AWS CLI is present | opt-in |
+| `brew` | Declarative Homebrew: install, remove, drift, and sync against a git-tracked Brewfile | `brew` | Best on workstation hosts with Homebrew or Linuxbrew; set `HOMEBREW_BUNDLE_FILE` to your Brewfile | opt-in |
 | `docker` | Docker aliases, context switching, and compact container inventory | `docker` | Best on hosts with a reachable Docker runtime; useful on Linux, WSL2, and macOS workstations | opt-in |
 | `git` | Extra git helpers for primary branch, reframe, cleanup, and compact repo workflows | `git` | General-purpose and host-light; good across Linux, WSL2, macOS, and containers | fortress default |
 | `kubectl` | Kubernetes aliases, context switching, and namespace helpers | `kubectl` | Best on workstation and cluster-admin hosts with kubeconfig access | opt-in |
 | `pass` | Password-store aliases and small helper functions | `pass` | Best on personal workstation hosts with GPG/password-store already set up | opt-in |
 | `television` | Television-backed picker helpers and git-branch channels | `tv` | Best on interactive workstation hosts; useful but still somewhat experimental | opt-in |
 | `web_search` | Extra fortress `web_search` engines for GitHub, MDN, and Terraform docs | browser integration | Best on hosts with working browser-opening behavior | opt-in |
+
+## Module Guides
+
+Modules with more than a handful of helpers, or with workflows that can change
+host state, ship a usage guide as `README.md` next to their `module.zsh`.
+`csm describe-module <name>` prints its path on a `docs:` line, and
+`csm docs <name>` renders it in the terminal. Small modules
+stay documented by their catalog row and the fortress `USAGE.md`.
+
+| Module | Guide |
+| --- | --- |
+| `brew` | [README.md](../zsh-tll-citadel-dev-fortress/curated-modules/brew/README.md) |
 
 ## Enable Versus Fork Guidance
 
@@ -66,6 +79,28 @@ Good fork candidates:
 - `aws` with organization-specific login patterns
 - `pass` with personal secret-store conventions
 - `television` if you want different picker channels, keybindings, or previews
+
+Brew specific note:
+
+- shell-config ships no default Brewfile; a recommended Brewfile of the
+  optional tools fortress benefits from belongs in dev-container-fortress, so
+  shell-config stays usable on its own
+- full setup and workflow guide:
+  [curated-modules/brew/README.md](../zsh-tll-citadel-dev-fortress/curated-modules/brew/README.md)
+- the module reads the Brewfile from `HOMEBREW_BUNDLE_FILE`, else Homebrew's
+  own `--global` locations; it never hardcodes a personal path
+- set `HOMEBREW_BUNDLE_FILE` in `shell-config.local` `env.zsh`, typically to a
+  Brewfile tracked in a dotfiles repository
+- point it at a whole-machine Brewfile, not a project-scoped dependency list:
+  `brew-drift` and `brew-sync` treat everything outside it as undeclared
+- seed a new machine Brewfile with `brew-dump > "$HOMEBREW_BUNDLE_FILE"`; it
+  dumps formulae, casks, and taps by default, with `--with vscode,uv,winget`
+  (or `--with all`) for extra ecosystems
+- drift and sync removal only ever cover formulae, casks, and taps
+- `brew-add`, `brew-rm`, and `brew-dump` have tab completion for package names
+  and options
+- `brew-sync` removes undeclared packages only after an explicit `y`, and that
+  removal also resets Homebrew's global trust store to the Brewfile
 
 AWS specific note:
 

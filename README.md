@@ -111,7 +111,7 @@ csm list-modules
 | Reference profiles | Working | Atuin and `fzf-tab` comparison profiles exist |
 | Fortress profile | Working foundation | Daily-use shell with stronger operator ergonomics |
 | Curated module lifecycle | Working foundation | Curated-live plus local-fork model exists |
-| Planning and roadmap flow | Working foundation | Roadmap and milestone workflow exist; `M0`–`M7` are done and the next milestone is being drafted |
+| Planning and roadmap flow | Working foundation | Roadmap and milestone workflow exist; `M0`–`M8` are done and the next milestone is not yet chosen |
 | Test harness | Working | `bats-core` suite, repo-owned runner, and Ubuntu Docker smoke path cover the main `csm` lifecycle flows |
 
 ## :wrench: Operator Surface
@@ -119,6 +119,7 @@ csm list-modules
 | Interface | Role | Current guidance |
 | --- | --- | --- |
 | `csm` | Primary human and agent operator surface | Use this first |
+| `csm docs [profile\|module]` | In-terminal docs reader | Renders a profile `USAGE.md` or module guide with `glow`, falling back to `$PAGER`, `less`, or raw markdown |
 | `install.sh` | Onboarding entrypoint | Use for clone-and-bootstrap installation |
 | root `.zshenv` | Shared selector | Keep it minimal and auditable |
 | profile `USAGE.md` files | Operational truth | Use these for real profile behavior |
@@ -182,13 +183,15 @@ Working today:
 - curated module lifecycle with direct enable, local fork install, and sync
 - live module-resolution visibility in `fortress-hud` and `fortress-debug-interactive`
 - `csm reset-profile` for clean-state testing and recovery
+- `csm docs` for reading profile and module docs in the terminal, rendered with `glow` when installed
+- an opt-in curated `brew` module that keeps a git-tracked Brewfile as the source of truth, with tab completion
 - Television-backed branch management and cleanup helpers in the fortress profile
 - `gbm` for temp-branch, rewrite, squash, publish, and land git workflows
 
 In progress:
 
 - continued operator UX hardening through dogfooding
-- planning a first-class curated Homebrew module, available but not enabled by default
+- forward fixes for the `brew` module as day-to-day use surfaces issues
 
 > [!TIP]
 > When shell startup, module, or helper behavior looks wrong, start with the
@@ -209,9 +212,9 @@ In progress:
 ## :calendar: Current Milestone
 
 The most recently completed milestone is
-[M6 Cross-Platform and Module Ecosystem Expansion](docs/milestones/M6-cross-platform-and-module-ecosystem.md).
-The next milestone is being drafted; [docs/ROADMAP.md](docs/ROADMAP.md) shows
-which milestone is `now`.
+[M8 Curated Homebrew Module](docs/milestones/M8-curated-brew-module.md).
+The next milestone is not yet chosen; [docs/ROADMAP.md](docs/ROADMAP.md) shows
+which milestone is `now` once one is.
 
 Use these planning docs together:
 

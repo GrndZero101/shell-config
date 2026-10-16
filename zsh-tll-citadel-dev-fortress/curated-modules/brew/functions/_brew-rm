@@ -1,0 +1,30 @@
+#compdef brew-rm
+# Complete brew-rm: an optional leading --cask, then names declared in the Brewfile.
+#
+# The Brewfile is read directly rather than through `brew bundle list`, which
+# takes about a second and would make Tab feel sluggish. Only plain
+# `brew "name"` / `cask "name"` lines are matched; names already on the
+# command line are not offered again.
+#
+# Arguments:
+#   None; reads the completion context ($words, $CURRENT, $PREFIX).
+# Returns:
+#   0 when candidates were added, non-zero otherwise.
+_brew-rm() {
+  local kind='brew' bf line
+  local -a names options=('--cask:treat every name as a cask')
+
+  [[ "${words[2]}" == '--cask' ]] && kind='cask'
+
+  if (( CURRENT == 2 )) && [[ "${PREFIX}" == -* ]]; then
+    _describe -t options 'brew-rm option' options
+    return
+  fi
+
+  bf="$(brew-file 2>/dev/null)" || return 1
+  for line in "${(@f)$(<"${bf}")}"; do
+    [[ "${line}" == "${kind} \""*'"'* ]] && names+=("${${line#${kind} \"}%%\"*}")
+  done
+  names=("${(@)names:|words}")
+  _wanted packages expl "declared ${kind}" compadd -a names
+}

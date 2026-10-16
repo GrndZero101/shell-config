@@ -1,0 +1,26 @@
+#compdef brew-add
+# Complete brew-add: an optional leading --cask, then formula or cask names.
+#
+# `brew formulae` and `brew casks` read Homebrew's local name lists and return
+# almost instantly, so no completion cache is needed. Names already on the
+# command line are not offered again.
+#
+# Arguments:
+#   None; reads the completion context ($words, $CURRENT, $PREFIX).
+# Returns:
+#   0 when candidates were added, non-zero otherwise.
+_brew-add() {
+  local list_command='formulae'
+  local -a names options=('--cask:treat every name as a cask')
+
+  [[ "${words[2]}" == '--cask' ]] && list_command='casks'
+
+  if (( CURRENT == 2 )) && [[ "${PREFIX}" == -* ]]; then
+    _describe -t options 'brew-add option' options
+    return
+  fi
+
+  names=("${(@f)$(brew "${list_command}" 2>/dev/null)}")
+  names=("${(@)names:|words}")
+  _wanted packages expl "${list_command%e}" compadd -a names
+}

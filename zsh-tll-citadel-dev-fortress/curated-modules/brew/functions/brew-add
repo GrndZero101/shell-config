@@ -1,0 +1,55 @@
+# Install packages and declare them in the Brewfile.
+#
+# `brew bundle add` appends unconditionally, so existing declarations are read
+# once through `brew bundle list` (Homebrew's own Brewfile parser) and matched
+# by exact name before anything is appended.
+#
+# Arguments:
+#   --cask   Optional leading flag; treat every name as a cask.
+#   $@       One or more package names.
+# Returns:
+#   0 on success, 1 on a missing Brewfile or brew failure, 2 on usage errors.
+# Side effects:
+#   Runs brew install, then appends undeclared names via `brew bundle add`.
+#   A tap-qualified name (owner/tap/formula) also declares its tap.
+#   Stops at the first failure so nothing is declared that failed to install.
+brew-add() {
+  emulate -L zsh
+
+  local kind='brew'
+  local bf name declared_output
+  local -a type_flags=(--formula) add_flags declared
+
+  if [[ "${1:-}" == '--cask' ]]; then
+    kind='cask'
+    type_flags=(--cask)
+    add_flags=(--cask)
+    shift
+  fi
+
+  (( $# )) || {
+    print -u2 -- 'usage: brew-add [--cask] <name>...'
+    return 2
+  }
+
+  bf="$(brew-file)" || return 1
+  declared_output="$(brew bundle list --file="${bf}" "${type_flags[@]}")" || return 1
+  declared=("${(@f)declared_output}")
+
+  for name in "$@"; do
+    brew install "${add_flags[@]}" -- "${name}" || return 1
+
+    # (Ie) is an exact, non-pattern match, so names like python@3.12 are literal.
+    if (( ${declared[(Ie)${name}]} )); then
+      print -r -- "already declared: ${kind} \"${name}\""
+    else
+      brew bundle add --file="${bf}" "${add_flags[@]}" -- "${name}" || return 1
+      declared+=("${name}")
+      print -r -- "declared: ${kind} \"${name}\""
+    fi
+
+    if [[ "${name}" == */*/* ]]; then
+      brew-add-tap "${bf}" "${name%/*}" || return 1
+    fi
+  done
+}

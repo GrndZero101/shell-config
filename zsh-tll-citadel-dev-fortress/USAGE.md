@@ -302,6 +302,7 @@ fortress-hud
 fortress-debug-interactive
 csm list-modules
 csm describe-module television
+csm docs
 ```
 
 Recommended first-response flow:
@@ -310,6 +311,7 @@ Recommended first-response flow:
 - `fortress-debug-interactive` to inspect keybindings, widgets, and interactive shell wiring
 - `csm list-modules` to see curated versus local module state at a glance
 - `csm describe-module <name>` to check whether a user-local override is shadowing a curated module
+- `csm docs` to read this file in the terminal, or `csm docs <module>` for a module guide such as `csm docs brew`
 
 > [!TIP]
 > If a helper exists in the repository but not in your live shell, check module
@@ -399,6 +401,7 @@ They also show a `source` column so you can quickly see whether an alias came fr
 | `rg`     | used as the `grep` alias when installed                              |
 | `fd`     | used as the `find` alias when installed                              |
 | `jq`     | pretty-print JSON through `jqp`                                      |
+| `glow`   | markdown rendering for `csm docs`; fortress exports `GLAMOUR_STYLE` to the vendored official Catppuccin Mocha theme in [`config/glow/catppuccin-mocha.json`](config/glow/catppuccin-mocha.json) unless you set your own; refreshable with `csm sync-catppuccin glow` |
 | `starship` | richer fortress prompt engine using the profile-local Catppuccin preset in [`starship.toml`](starship.toml) |
 | `zinit` | fortress-only plugin manager for the optional plugin layer, installed explicitly with `csm install-zinit` |
 | `zoxide` | replaces `cd` with smarter directory jumping while preserving `cd` muscle memory |
@@ -590,6 +593,7 @@ Fortress currently ships these curated optional modules:
 | Module | Purpose |
 | --- | --- |
 | `aws` | fortress-owned AWS aliases plus profile inventory, identity, login-mode inspection, and login helpers |
+| `brew` | declarative Homebrew helpers that keep a git-tracked Brewfile as the source of truth for installs, removals, drift, and sync |
 | `docker` | fortress-owned Docker aliases plus context switching and compact container inventory helpers |
 | `git` | adds a few extra git aliases plus autoloaded helpers for primary-branch switching and recent-branch inspection |
 | `kubectl` | fortress-owned kubectl aliases plus context switching and namespace inventory helpers |
@@ -608,6 +612,7 @@ Host-sensitive module notes:
 - `docker` and `kubectl` are best enabled on hosts where the backing runtime or kubeconfig is intentionally present
 - `pass` is best enabled only after the host already has a working GPG and password-store baseline
 - `aws` is most useful on workstation-style hosts that already have AWS CLI login and profile setup
+- `brew` loads only when `brew` is on `PATH`; it needs a Brewfile from `HOMEBREW_BUNDLE_FILE` or Homebrew's `--global` locations
 - inside a Dev Fortress workspace container, `aws-login` now prefers device-code mode by default because localhost callback OAuth is not guaranteed there
 
 Typical flow:
@@ -632,6 +637,33 @@ Expected behavior:
 - native hosts default to `browser`
 - Dev Fortress workspace containers default to `device-code`
 - explicit `--browser` and `--device-code` flags override the default
+
+Brew module:
+
+The full setup and workflow guide lives with the module in
+[curated-modules/brew/README.md](curated-modules/brew/README.md), which
+`csm describe-module brew` also points to; read it in the terminal with
+`csm docs brew`. In short: point
+`HOMEBREW_BUNDLE_FILE` at a whole-machine Brewfile in `env.zsh`, run
+`csm enable-module brew`, open a fresh shell, and seed the Brewfile with
+`brew-dump`.
+
+| Function | Alias | Purpose |
+| --- | --- | --- |
+| `brew-file` | `brf` | print the resolved Brewfile: `HOMEBREW_BUNDLE_FILE`, then `HOMEBREW_BUNDLE_FILE_GLOBAL`, `${XDG_CONFIG_HOME}/homebrew/Brewfile`, `~/.homebrew/Brewfile`, `~/.Brewfile` |
+| `brew-add [--cask] <name>...` | `bra` | install, then declare each name once; reports `already declared` for existing entries; a tap-qualified name (`owner/tap/formula`) also declares its tap |
+| `brew-rm [--cask] <name>...` | `brr` | uninstall when installed, remove the entry and its Homebrew description comment, then `brew autoremove`; a declared but not installed name only loses its declaration |
+| `brew-drift` | `brd` | read-only report of undeclared and missing packages |
+| `brew-sync [upgrade-flags...]` | `brs` | `brew update`, `bundle install --no-upgrade`, drift review, `brew upgrade "$@"`, `autoremove`, `cleanup --prune=all` |
+| `brew-edit` | `bre` | open the Brewfile in `$VISUAL` or `$EDITOR` |
+| `brew-dump [--with <types>]... [--write]` | none | snapshot installed packages; formulae, casks, and taps by default, extras opt-in (`mas`, `vscode`, `go`, `cargo`, `uv`, `flatpak`, `winget`, `krew`, `npm`, or `all`); prints to stdout unless `--write` replaces the active Brewfile |
+| `brew-undeclared <brewfile>` | none | list undeclared packages; shared by `brew-drift` and `brew-sync` |
+| `brew-add-tap <brewfile> <tap>` | none | declare a tap once; used by `brew-add` |
+| `brew-drop-description <brewfile> <kind> <name>` | none | remove the exact Homebrew description comment directly above an entry; used by `brew-rm` |
+
+- `brew-add`, `brew-rm`, `brew-dump`, `bra`, and `brr` have tab completion for package names and options
+- removal only happens through `brew-rm` or an explicit `y` in `brew-sync`, and drift and cleanup are limited to formulae, casks, and taps
+- `fortress-hud` shows `[tools] brew` and `[tools] brewfile` (`module-disabled`, `brew-missing`, the resolved path, or the missing `HOMEBREW_BUNDLE_FILE`); `fortress-debug-interactive` prints a `== Homebrew ==` section
 
 Fortress default:
 
@@ -789,6 +821,13 @@ zsh -il
 - in live-shell testing, Atuin respected the exported `ATUIN_CONFIG_DIR` and used the profile-local config even though `atuin info` still reported the default config path
 - Atuin may still create `~/.config/atuin/` as a directory, but the active config and theme can still come from the exported profile-local config directory
 - refresh the vendored Atuin Catppuccin theme with `csm sync-catppuccin atuin` or refresh all supported Catppuccin assets with `csm sync-catppuccin`
+
+Glow theming:
+
+- when `glow` is installed and `GLAMOUR_STYLE` is unset, fortress exports `GLAMOUR_STYLE` to the vendored official Catppuccin Mocha theme in [`config/glow/catppuccin-mocha.json`](config/glow/catppuccin-mocha.json); `fortress-hud` shows it as `[features] glamour_style`
+- `csm docs` and glow's TUI (`glow` with no file) read `GLAMOUR_STYLE`, as do other glamour-based tools that honor the variable
+- glow 3's CLI (`glow README.md`) ignores `GLAMOUR_STYLE`, so plain file rendering follows your own `~/.config/glow/glow.yml`; set `style:` there to the vendored path if you want it themed too
+- refresh the theme with `csm sync-catppuccin glow`
 - if `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` is set on its own, fortress skips `zsh-autocomplete` so `zsh-vi-mode` can own widget handling; `fzf-tab` may still be enabled alongside it
 - if both `SHELL_FORTRESS_ENABLE_ZSH_VI_MODE=1` and `SHELL_FORTRESS_ENABLE_ZSH_AUTOCOMPLETE=1` are set, fortress enters an experimental compatibility mode that initializes `zsh-vi-mode` eagerly before loading `zsh-autocomplete`
 - if `zsh-autocomplete` actually loads, fortress skips `fzf-tab` and lets `zsh-autocomplete` win

@@ -80,6 +80,26 @@ fortress-debug-interactive-print-branch-lifecycle() {
   fi
 }
 
+# Print Homebrew and curated brew module state.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing the Homebrew state.
+fortress-debug-interactive-print-homebrew() {
+  local brewfile_path=''
+
+  print -r -- '== Homebrew =='
+  print -r -- "brew: ${commands[brew]:-missing}"
+  print -r -- "HOMEBREW_BUNDLE_FILE=${HOMEBREW_BUNDLE_FILE:-unset}"
+  if (( ! $+functions[brew-file] )); then
+    print -r -- 'brew module: not loaded'
+    return 0
+  fi
+
+  brewfile_path="$(brew-file 2>&1)"
+  print -r -- "brewfile: ${brewfile_path}"
+}
+
 # Print keybinding and widget state for fortress interactive plugins.
 # Arguments:
 #   None.
@@ -111,6 +131,9 @@ fortress-debug-interactive() {
 
   print -r -- ''
   fortress-debug-interactive-print-branch-lifecycle
+
+  print -r -- ''
+  fortress-debug-interactive-print-homebrew
 
   print -r -- ''
   print -r -- '== Functions =='

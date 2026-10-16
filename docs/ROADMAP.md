@@ -299,6 +299,30 @@ Delivered:
 Details:
 [M7 draft](milestones/M7-shell-integration-test-harness.md)
 
+### `M8` Curated Homebrew Module
+
+Status: `done`
+
+Objective:
+Add a first-class, opt-in curated `brew` module that keeps a git-tracked
+Brewfile as the source of truth for installed Homebrew packages.
+
+Exit criteria:
+
+- installs and removals through the module keep the Brewfile in step
+- drift between host and Brewfile is visible without side effects
+- sync converges on the Brewfile and never removes packages without explicit
+  confirmation
+- the HUD and docs make the resolved Brewfile obvious
+
+Non-goals:
+
+- enabling the module by default
+- hardcoding a personal Brewfile path in the repository
+
+Details:
+[M8 draft](milestones/M8-curated-brew-module.md)
+
 ## Idea Pool
 
 These ideas matter, but are not yet shaped enough to promote into active
@@ -309,6 +333,12 @@ milestones:
 - richer module-source and startup diagnostics in the HUD
 - interactive cleanup and recovery surfaces beyond git branches
 - profile-specific bootstrap shortcuts for ephemeral development environments
+- `brew` module support for non-Homebrew Brewfile ecosystems (`vscode`, `uv`,
+  `winget`, ...) in `brew-add`, `brew-rm`, and opt-in drift and cleanup
+- real-host macOS verification of the `brew` module, including `mas` and casks
+- dev-container-fortress-owned recommended Brewfile listing the optional tools
+  fortress uses (`eza`, `fzf`, `zoxide`, `starship`, `atuin`, `glow`, ...);
+  tracked here only as a cross-project dependency, not shell-config work
 
 ## Definition of Done
 

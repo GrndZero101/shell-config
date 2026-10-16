@@ -1,0 +1,23 @@
+# Declare a tap in the Brewfile when it is not already declared.
+#
+# Taps are re-read after each entry is added, so this stays correct whether
+# or not `brew bundle add` writes the tap line itself.
+#
+# Arguments:
+#   $1 - Brewfile path.
+#   $2 - Tap name such as owner/tap.
+# Returns:
+#   0 on success, 1 when brew bundle fails.
+brew-add-tap() {
+  emulate -L zsh
+
+  local bf="$1" tap="$2" taps_output
+  local -a taps
+
+  taps_output="$(brew bundle list --file="${bf}" --tap)" || return 1
+  taps=("${(@f)taps_output}")
+  (( ${taps[(Ie)${tap}]} )) && return 0
+
+  brew bundle add --file="${bf}" --tap -- "${tap}" || return 1
+  print -r -- "declared: tap \"${tap}\""
+}

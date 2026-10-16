@@ -23,6 +23,12 @@ Current covered flows:
 - curated module enable, install, sync, and removal
 - `csm reset-profile`
 - fortress live-shell module resolution in `fortress-hud` and `fortress-debug-interactive`
+- curated `aws` and `brew` module helpers, using stub CLIs that record calls
+- real zsh tab completion via `tests/support/capture-completion.zsh`, which drives
+  `zsh -f -i` in a pseudo-terminal and prints the offered candidates
+- terminal-only code paths such as `csm docs` rendering via
+  `tests/support/run-in-pty.zsh`, which runs a command with a pseudo-terminal
+  as stdout (`PTY_INPUT` types keys, for example `q` to quit a pager)
 
 Run the suite from the repo root with:
 
@@ -34,6 +40,13 @@ Run the Ubuntu clean-room smoke path with:
 
 ```sh
 ./tests/run.zsh --docker-ubuntu
+```
+
+Run the opt-in checks against real Homebrew (`brew bundle` edits a temp Brewfile;
+package installs stay stubbed) with:
+
+```sh
+SHELL_CONFIG_TEST_REAL_BREW=1 ./tests/run.zsh
 ```
 
 If `gum` is unavailable, the suite still runs with plain terminal output.

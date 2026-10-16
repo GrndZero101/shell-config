@@ -1,0 +1,15 @@
+#compdef brew-dump
+# Complete brew-dump options, including comma-separated --with ecosystem lists.
+#
+# Keep the ecosystem list in step with `known_extras` in brew-dump.
+#
+# Arguments:
+#   None; reads the completion context.
+# Returns:
+#   The status of _arguments.
+_brew-dump() {
+  _arguments \
+    '*--with=[include extra ecosystems]:ecosystems:_values -s , ecosystem mas vscode go cargo uv flatpak winget krew npm all' \
+    '--write[replace the active Brewfile in place]' \
+    '(- *)'{-h,--help}'[show usage]'
+}

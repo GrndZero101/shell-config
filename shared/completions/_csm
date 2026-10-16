@@ -5,10 +5,11 @@
 emulate -L zsh
 
 local completion_root
-local -a commands profile_dirs profiles sync_assets fortress_modules local_modules all_modules
+local -a commands profile_dirs profiles sync_assets fortress_modules local_modules all_modules guide_modules
 
 commands=(
   'bootstrap:install ~/.zshenv and ~/.local/bin/csm symlinks'
+  'docs:show a profile USAGE.md or module guide (glow when installed)'
   'help:show categorized command help'
   'install-fzf-tab:install the official fzf-tab reference clone'
   'install-zinit:install zinit for the fortress profile'
@@ -41,11 +42,14 @@ local_modules=(${XDG_CONFIG_HOME:-${HOME}/.config}/shell-config.local/zsh-tll-ci
 local_modules=(${local_modules%.zsh})
 all_modules=(${fortress_modules} ${local_modules})
 all_modules=(${(u)all_modules})
+guide_modules=(${completion_root}/zsh-*/curated-modules/*/README.md(N-.))
+guide_modules=(${(u)${guide_modules:h}:t})
 
 sync_assets=(
   all
   atuin
   eza
+  glow
 )
 
 if (( CURRENT == 2 )); then
@@ -71,6 +75,12 @@ case "${words[2]}" in
 
     if (( CURRENT >= 4 )); then
       _values 'profile' "${profiles[@]}"
+      return 0
+    fi
+    ;;
+  docs)
+    if (( CURRENT >= 3 )); then
+      _values 'profile, module guide, or option' --plain "${profiles[@]}" "${guide_modules[@]}"
       return 0
     fi
     ;;

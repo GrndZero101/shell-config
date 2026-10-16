@@ -57,7 +57,7 @@ main() {
       set -euo pipefail
       export DEBIAN_FRONTEND=noninteractive
       apt-get update
-      apt-get install -y --no-install-recommends bats ca-certificates git zsh
+      apt-get install -y --no-install-recommends bats ca-certificates git less zsh
       mkdir -p /tmp/xdg-config /tmp/xdg-state /tmp/xdg-cache /tmp/xdg-data /tmp/xdg-runtime /tmp/home
       export HOME=/tmp/home
       export XDG_CONFIG_HOME=/tmp/xdg-config

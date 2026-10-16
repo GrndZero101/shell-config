@@ -1,0 +1,25 @@
+# Report drift between the host and the Brewfile without changing anything.
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 when every declared dependency is installed, 1 when some are missing,
+#   the Brewfile is missing, or brew bundle fails.
+brew-drift() {
+  emulate -L zsh
+
+  local bf undeclared
+
+  bf="$(brew-file)" || return 1
+  undeclared="$(brew-undeclared "${bf}")" || return 1
+
+  if [[ -n "${undeclared}" ]]; then
+    print -r -- '==> Installed but not in Brewfile:'
+    print -r -- "${undeclared}"
+  else
+    print -r -- '==> Nothing undeclared'
+  fi
+
+  print -r -- '==> Declared but missing:'
+  brew bundle check --file="${bf}" --verbose
+}

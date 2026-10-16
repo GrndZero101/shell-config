@@ -1,0 +1,39 @@
+# Print the active Brewfile path.
+#
+# Resolution order:
+#   1. HOMEBREW_BUNDLE_FILE when set (no fallback if it points nowhere)
+#   2. Homebrew's --global order: HOMEBREW_BUNDLE_FILE_GLOBAL,
+#      ${XDG_CONFIG_HOME}/homebrew/Brewfile, ~/.homebrew/Brewfile, ~/.Brewfile
+#
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing an existing Brewfile path, 1 when none is found.
+brew-file() {
+  emulate -L zsh
+
+  local candidate=''
+  local -a candidates
+
+  if [[ -n "${HOMEBREW_BUNDLE_FILE:-}" ]]; then
+    candidates=("${HOMEBREW_BUNDLE_FILE}")
+  else
+    [[ -n "${HOMEBREW_BUNDLE_FILE_GLOBAL:-}" ]] && candidates+=("${HOMEBREW_BUNDLE_FILE_GLOBAL}")
+    [[ -n "${XDG_CONFIG_HOME:-}" ]] && candidates+=("${XDG_CONFIG_HOME}/homebrew/Brewfile")
+    candidates+=("${HOME}/.homebrew/Brewfile" "${HOME}/.Brewfile")
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "${candidate}" ]]; then
+      print -r -- "${candidate}"
+      return 0
+    fi
+  done
+
+  if [[ -n "${HOMEBREW_BUNDLE_FILE:-}" ]]; then
+    print -u2 -- "brew-file: HOMEBREW_BUNDLE_FILE points to a missing file: ${HOMEBREW_BUNDLE_FILE}"
+  else
+    print -u2 -- 'brew-file: no Brewfile found; set HOMEBREW_BUNDLE_FILE in shell-config.local env.zsh'
+  fi
+  return 1
+}

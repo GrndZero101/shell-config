@@ -189,6 +189,24 @@ fortress-hud-branch-lifecycle-summary() {
   print -r -- "${current_branch} state=${status_line}"
 }
 
+# Print the resolved Brewfile when the curated brew module is loaded.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing one compact summary line.
+fortress-hud-brewfile-summary() {
+  local brewfile_path=''
+
+  (( $+commands[brew] )) || { print -r -- 'brew-missing'; return 0; }
+  (( $+functions[brew-file] )) || { print -r -- 'module-disabled'; return 0; }
+
+  brewfile_path="$(brew-file 2>/dev/null)" || {
+    print -r -- "missing HOMEBREW_BUNDLE_FILE=${HOMEBREW_BUNDLE_FILE:-unset}"
+    return 0
+  }
+  print -r -- "${brewfile_path}"
+}
+
 # Print a renderer-aware section heading.
 # Arguments:
 #   $1: renderer mode, standard or pretty.
@@ -644,6 +662,7 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" features 'disabled_modules' "${(j:, :)SHELL_FORTRESS_DISABLED_MODULES}"
   fortress-hud-line "${render_mode}" features 'atuin_config_dir' "${ATUIN_CONFIG_DIR:-unset}"
   fortress-hud-line "${render_mode}" features 'atuin_theme_dir' "${ATUIN_THEME_DIR:-unset}"
+  fortress-hud-line "${render_mode}" features 'glamour_style' "${GLAMOUR_STYLE:-unset}"
   fortress-hud-blank
 
   fortress-hud-section "${render_mode}" module_resolution '󰈔' 'Module Resolution'
@@ -668,6 +687,8 @@ fortress-hud() {
   fortress-hud-line "${render_mode}" tools 'eza' "$(fortress-hud-render-command "${render_mode}" eza)"
   fortress-hud-line "${render_mode}" tools 'zoxide' "$(fortress-hud-render-command "${render_mode}" zoxide)"
   fortress-hud-line "${render_mode}" tools 'direnv' "$(fortress-hud-render-command "${render_mode}" direnv)"
+  fortress-hud-line "${render_mode}" tools 'brew' "$(fortress-hud-render-command "${render_mode}" brew)"
+  fortress-hud-line "${render_mode}" tools 'brewfile' "$(fortress-hud-brewfile-summary)"
   fortress-hud-blank
 
   fortress-hud-section "${render_mode}" runtime '󰌌' 'Runtime'

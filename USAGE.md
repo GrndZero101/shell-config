@@ -11,6 +11,14 @@ Practical usage notes for the shell profiles in this repository, with emphasis o
 > and [`docs/milestones/README.md`](docs/milestones/README.md).
 > This file is for operational shell behavior only.
 
+> [!TIP]
+> Read any profile's `USAGE.md` or a module guide in the terminal with
+> `csm docs [profile|module]`, for example `csm docs` for the active profile or
+> `csm docs brew`. It renders with `glow` when installed, otherwise opens
+> `$PAGER` or `less`; piped output and `TERM=dumb` get raw markdown, and `--plain` forces it.
+> In `zsh-tll-citadel-dev-fortress` the rendering uses the vendored Catppuccin
+> Mocha theme; other profiles use glow's default style.
+
 ## Line Editor Modes
 
 These profiles use:

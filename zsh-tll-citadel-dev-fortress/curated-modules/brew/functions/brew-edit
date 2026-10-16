@@ -1,0 +1,15 @@
+# Open the active Brewfile in the user's editor.
+#
+# Arguments:
+#   None.
+# Returns:
+#   The editor's exit status, or 1 when no Brewfile is found.
+brew-edit() {
+  emulate -L zsh
+
+  local bf
+
+  bf="$(brew-file)" || return 1
+  # ${=...} word-splits editor values such as "code --wait".
+  ${=${VISUAL:-${EDITOR:-vi}}} "${bf}"
+}

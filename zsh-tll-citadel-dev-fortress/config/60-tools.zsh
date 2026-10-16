@@ -47,6 +47,13 @@ ZSH_WEB_SEARCH_ENGINES+=(
   duckduckgo 'https://duckduckgo.com/?q='
 )
 
+# Vendored official Catppuccin Mocha glamour theme. GLAMOUR_STYLE is read by
+# glow's TUI and `csm docs` (other glamour tools may honor it); glow's CLI ignores it,
+# so plain `glow file` follows the user's own glow.yml. A user value wins.
+if (( $+commands[glow] )) && [[ -z "${GLAMOUR_STYLE:-}" && -r "${ZDOTDIR}/config/glow/catppuccin-mocha.json" ]]; then
+  export GLAMOUR_STYLE="${ZDOTDIR}/config/glow/catppuccin-mocha.json"
+fi
+
 if (( $+commands[eza] )); then
   export EZA_CONFIG_DIR="${ZDOTDIR}/config/eza"
   alias ls='eza --group-directories-first --icons=auto'

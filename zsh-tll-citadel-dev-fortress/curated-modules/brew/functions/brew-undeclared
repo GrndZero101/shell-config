@@ -1,0 +1,35 @@
+# Print packages installed on the host but not declared in a Brewfile.
+#
+# Homebrew 7 `brew bundle cleanup` has no dry-run flag: without --force it
+# prompts and removes on confirmation. Running it with stdin from /dev/null
+# guarantees the prompt cannot be answered, so it only lists and exits 1.
+# Scope is pinned to formulae, casks, and taps so other Brewfile types such
+# as winget, vscode, or uv are never reported or removed by this module.
+#
+# Arguments:
+#   $1 - Brewfile path.
+# Returns:
+#   0 after printing the undeclared list (empty output means no drift),
+#   1 when brew bundle reports an error instead of a cleanup list.
+brew-undeclared() {
+  emulate -L zsh
+
+  local bf="$1"
+  local cleanup_output=''
+  local cleanup_status=0
+  local -a cleanup_lines
+
+  cleanup_output="$(brew bundle cleanup --file="${bf}" --formula --cask --tap </dev/null 2>&1)" || cleanup_status=$?
+
+  (( cleanup_status == 0 )) && return 0
+
+  if [[ "${cleanup_output}" == *'Would uninstall'* ]]; then
+    cleanup_lines=("${(@f)cleanup_output}")
+    # Drop Homebrew's trailing "Run `brew bundle cleanup --force`" hint.
+    print -rl -- "${(@)cleanup_lines:#Run *--force*}"
+    return 0
+  fi
+
+  print -u2 -r -- "${cleanup_output}"
+  return 1
+}
