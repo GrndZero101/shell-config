@@ -22,6 +22,8 @@ Current covered flows:
 - `csm select`
 - curated module enable, install, sync, and removal
 - `csm reset-profile`
+- `csm tmux-profile` switching, brownfield refusals, and live reload on an
+  isolated tmux socket
 - fortress live-shell module resolution in `fortress-hud` and `fortress-debug-interactive`
 - curated `aws` and `brew` module helpers, using stub CLIs that record calls
 - real zsh tab completion via `tests/support/capture-completion.zsh`, which drives

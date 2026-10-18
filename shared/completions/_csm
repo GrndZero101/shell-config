@@ -5,7 +5,7 @@
 emulate -L zsh
 
 local completion_root
-local -a commands profile_dirs profiles sync_assets fortress_modules local_modules all_modules guide_modules
+local -a commands profile_dirs profiles sync_assets fortress_modules local_modules all_modules guide_modules tmux_profiles
 
 commands=(
   'bootstrap:install ~/.zshenv and ~/.local/bin/csm symlinks'
@@ -29,6 +29,7 @@ commands=(
   'clear-history:clear history for the current profile or all profiles'
   'sync-catppuccin:refresh vendored Catppuccin assets'
   'describe-profile:print profile contract metadata'
+  'tmux-profile:show or switch the Dev Fortress tmux profile'
 )
 
 completion_root="${ZDOTDIR:h}"
@@ -44,6 +45,7 @@ all_modules=(${fortress_modules} ${local_modules})
 all_modules=(${(u)all_modules})
 guide_modules=(${completion_root}/zsh-*/curated-modules/*/README.md(N-.))
 guide_modules=(${(u)${guide_modules:h}:t})
+tmux_profiles=(none ${XDG_DATA_HOME:-${HOME}/.local/share}/dev-container-fortress/tmux-profiles/*/tmux.conf(N-.:h:t))
 
 sync_assets=(
   all
@@ -99,6 +101,12 @@ case "${words[2]}" in
   sync-catppuccin)
     if (( CURRENT == 3 )); then
       _values 'Catppuccin asset' "${sync_assets[@]}"
+      return 0
+    fi
+    ;;
+  tmux-profile)
+    if (( CURRENT >= 3 )); then
+      _values 'tmux profile or option' -i --interactive --no-interactive "${tmux_profiles[@]}"
       return 0
     fi
     ;;
