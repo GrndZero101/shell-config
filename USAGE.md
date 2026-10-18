@@ -305,6 +305,31 @@ For a cleaner environment reset:
 csm select --clean
 ```
 
+## tmux Profiles
+
+Dev Fortress installs the tmux profiles (`minimal`, `full`, `raidboss`) when
+one of its `tmux-*` options is selected, and owns their content. `csm` only
+switches between them:
+
+```shell
+csm tmux-profile            # show the active profile and the installed ones
+csm tmux-profile full       # link a profile and reload a running tmux
+csm tmux-profile none       # remove the link; tmux falls back to stock settings
+csm tmux-profile -i         # pick one with fzf, or a zsh menu without it
+```
+
+The shared contract:
+
+- profiles live in `${XDG_DATA_HOME:-~/.local/share}/dev-container-fortress/tmux-profiles/<name>/`
+- the active profile is one symlink at `${XDG_CONFIG_HOME:-~/.config}/tmux/tmux.conf`
+- a Dev Fortress bootstrap re-run keeps the choice made here
+
+> [!NOTE]
+> `csm` refuses to replace a `tmux.conf` it did not link, and refuses to link
+> a profile while `~/.tmux.conf` exists, because tmux loads both files. A
+> reload cannot unset what the previous profile set, so restart tmux
+> (`tmux kill-server`) for a clean switch.
+
 ## Current Caveats
 
 - `vicmd` mode still uses normal history movement for `j` / `k`; prefix history search is primarily available in insert mode.

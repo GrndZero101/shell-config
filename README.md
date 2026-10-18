@@ -120,6 +120,7 @@ csm list-modules
 | --- | --- | --- |
 | `csm` | Primary human and agent operator surface | Use this first |
 | `csm docs [profile\|module]` | In-terminal docs reader | Renders a profile `USAGE.md` or module guide with `glow`, falling back to `$PAGER`, `less`, or raw markdown |
+| `csm tmux-profile [name\|none]` | tmux profile switch | Flips between the tmux profiles Dev Fortress installs, or back to stock tmux; `-i` opens a picker |
 | `install.sh` | Onboarding entrypoint | Use for clone-and-bootstrap installation |
 | root `.zshenv` | Shared selector | Keep it minimal and auditable |
 | profile `USAGE.md` files | Operational truth | Use these for real profile behavior |
@@ -187,6 +188,7 @@ Working today:
 - an opt-in curated `brew` module that keeps a git-tracked Brewfile as the source of truth, with tab completion
 - Television-backed branch management and cleanup helpers in the fortress profile
 - `gbm` for temp-branch, rewrite, squash, publish, and land git workflows
+- `csm tmux-profile` for switching the Dev Fortress tmux profiles
 
 In progress:
 

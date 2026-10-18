@@ -38,6 +38,10 @@ typeset -gr CATPPUCCIN_FORTRESS_GLOW_DEST="${SHELL_CONFIG_ROOT}/zsh-tll-citadel-
 typeset -gr CATPPUCCIN_FORTRESS_ATUIN_DEST="${SHELL_CONFIG_ROOT}/zsh-tll-citadel-dev-fortress/config/atuin/themes/catppuccin-mocha-mauve.toml"
 typeset -gr FORTRESS_ZINIT_REPO_URL='https://github.com/zdharma-continuum/zinit.git'
 typeset -gr FORTRESS_ZINIT_HOME="${SHELL_PROFILE_DATA_ROOT}/zsh-tll-citadel-dev-fortress/zinit/zinit.git"
+# Contract with Dev Fortress, which installs and owns the tmux profiles: one
+# directory per profile, and one link that selects the active profile.
+typeset -gr TMUX_PROFILES_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/dev-container-fortress/tmux-profiles"
+typeset -gr TMUX_PROFILE_LINK="${XDG_CONFIG_HOME:-${HOME}/.config}/tmux/tmux.conf"
 typeset -gr REF_FZFTAB_REPO_URL='https://github.com/Aloxaf/fzf-tab.git'
 typeset -gr REF_FZFTAB_HOME="${SHELL_PROFILE_DATA_ROOT}/zsh-ref-fzftab/fzf-tab/fzf-tab"
 
@@ -67,7 +71,8 @@ usage() {
     'reset-profile|Reset mutable profile state for testing and clean-state recovery'
   csm-print-command-section '󰒓 Profile' \
     'select|Choose a shell profile and exec a fresh zsh' \
-    'describe-profile|Print profile contract metadata'
+    'describe-profile|Print profile contract metadata' \
+    'tmux-profile|Show or switch the Dev Fortress tmux profile, or none for stock tmux'
   csm-print-command-section '󰘳 Settings' \
     'init-settings|Create a profile settings file from its template' \
     'edit-settings|Ensure a profile settings file exists, then open it in $VISUAL or $EDITOR'
@@ -92,6 +97,7 @@ usage() {
   print -P -- "  %F{244}Interactive module enable:%f CSM_INTERACTIVE=1 csm enable-module"
   print -P -- "  %F{244}Module scaffold:%f csm init-module aws_local && csm enable-module aws_local"
   print -P -- "  %F{244}Profile switch:%f csm select -i"
+  print -P -- "  %F{244}tmux profile:%f csm tmux-profile -i"
   print -P -- "  %F{244}Read docs:%f csm docs brew"
   print -P -- "  %F{244}Profile reset:%f csm reset-profile zsh-tll-citadel-dev-fortress"
 }
@@ -2436,6 +2442,162 @@ select_profile() {
 }
 
 #
+# List the Dev Fortress tmux profiles installed on this machine.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing none, then one installed profile name per line.
+tmux_profile_names() {
+  local -a profile_confs
+
+  profile_confs=("${TMUX_PROFILES_DIR}"/*/tmux.conf(N-.))
+  print -rl -- none ${profile_confs:h:t}
+}
+
+#
+# Report which tmux profile the tmux.conf link selects.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing none (no file), a profile name, or unmanaged when the
+#   file is not a link into the Dev Fortress profiles directory.
+current_tmux_profile() {
+  local link_target
+
+  if [[ ! -e "${TMUX_PROFILE_LINK}" && ! -L "${TMUX_PROFILE_LINK}" ]]; then
+    print -r -- none
+    return 0
+  fi
+
+  if [[ -L "${TMUX_PROFILE_LINK}" ]]; then
+    link_target="$(readlink "${TMUX_PROFILE_LINK}")"
+    if [[ "${link_target}" == "${TMUX_PROFILES_DIR}"/*/tmux.conf ]]; then
+      print -r -- "${link_target:h:t}"
+      return 0
+    fi
+  fi
+
+  print -r -- unmanaged
+}
+
+#
+# Find the tmux binary to talk to a running server with.
+# Arguments:
+#   None.
+# Returns:
+#   0 after printing the binary path, non-zero when tmux is not installed.
+# Side effects:
+#   None. Homebrew's tmux wins over the PATH order csm sets, because the
+#   profiles need its newer release and a client must match the server's.
+tmux_profile_tmux_bin() {
+  local brew_tmux="${HOMEBREW_PREFIX:-/home/linuxbrew/.linuxbrew}/bin/tmux"
+
+  if [[ -x "${brew_tmux}" ]]; then
+    print -r -- "${brew_tmux}"
+  elif (( $+commands[tmux] )); then
+    print -r -- "${commands[tmux]}"
+  else
+    return 1
+  fi
+}
+
+#
+# Show or switch the Dev Fortress tmux profile.
+# Arguments:
+#   -i/--interactive    Pick a profile with fzf, or a zsh menu without it.
+#   --no-interactive    Never prompt; with no profile, just show the state.
+#   $1                  Optional profile name, or none for stock tmux.
+# Returns:
+#   0 after showing or switching, non-zero on an unknown profile, a missing
+#   profiles directory, or a tmux config Dev Fortress does not own.
+# Side effects:
+#   Replaces or removes the tmux.conf link, and reloads a running tmux
+#   server. Never touches a file it did not link, nor ~/.tmux.conf.
+tmux_profile() {
+  emulate -L zsh
+
+  local requested current profile tmux_bin interactive_mode
+  local -a opt_interactive opt_no_interactive profiles
+
+  zparseopts -D -E i=opt_interactive -interactive=opt_interactive -no-interactive=opt_no_interactive || return 1
+
+  if (( $# > 1 )); then
+    print -u2 -- "error: unexpected arguments for tmux-profile: $*"
+    print -u2 -- 'usage: csm tmux-profile [-i|--interactive|--no-interactive] [profile|none]'
+    return 1
+  fi
+
+  profiles=(${(f)"$(tmux_profile_names)"})
+  if (( ${#profiles} == 1 )); then
+    print -u2 -- "csm tmux-profile: no Dev Fortress tmux profiles in ${TMUX_PROFILES_DIR}"
+    print -u2 -- 'csm tmux-profile: select a tmux-* option in Dev Fortress (ft options pick), then re-run its bootstrap'
+    return 1
+  fi
+
+  current="$(current_tmux_profile)"
+  requested="${1:-}"
+
+  if [[ -z "${requested}" ]]; then
+    interactive_mode="$(csm-resolve-interactive-mode ${#opt_interactive[@]} ${#opt_no_interactive[@]} 0)" || return 1
+    if (( ! interactive_mode )); then
+      csm-print-section-header '󰆍 tmux profile' "${TMUX_PROFILE_LINK}"
+      for profile in "${profiles[@]}"; do
+        if [[ "${profile}" == "${current}" ]]; then
+          print -P -- "  %F{114}● ${profile}%f"
+        else
+          print -r -- "  ○ ${profile}"
+        fi
+      done
+      [[ "${current}" != unmanaged ]] || print -P -- "  %F{221}! ${TMUX_PROFILE_LINK} is not a Dev Fortress link%f"
+      return 0
+    fi
+    print -r -- "current tmux profile: ${current}"
+    requested="$(csm-select-from-list 'tmux profile' "${profiles[@]}")" || return 1
+  fi
+
+  if (( ! ${profiles[(Ie)${requested}]} )); then
+    print -u2 -- "csm tmux-profile: unknown profile: ${requested}"
+    print -u2 -- "csm tmux-profile: available profiles: ${(j:, :)profiles}"
+    return 1
+  fi
+
+  if [[ "${current}" == unmanaged ]]; then
+    print -u2 -- "csm tmux-profile: ${TMUX_PROFILE_LINK} is not a Dev Fortress link; move it aside to switch profiles"
+    return 1
+  fi
+  # tmux loads ~/.tmux.conf as well as the XDG file, so the two would mix.
+  if [[ "${requested}" != none && -e "${HOME}/.tmux.conf" ]]; then
+    print -u2 -- "csm tmux-profile: ${HOME}/.tmux.conf exists and tmux would load it too; move it aside first"
+    return 1
+  fi
+
+  if [[ "${requested}" == "${current}" ]]; then
+    print -r -- "tmux profile: ${current} (unchanged)"
+    return 0
+  fi
+
+  if [[ "${requested}" == none ]]; then
+    rm -f -- "${TMUX_PROFILE_LINK}"
+  else
+    mkdir -p -- "${TMUX_PROFILE_LINK:h}"
+    ln -sfn -- "${TMUX_PROFILES_DIR}/${requested}/tmux.conf" "${TMUX_PROFILE_LINK}"
+  fi
+  print -P -- "%F{114}tmux profile: ${current} -> ${requested}%f"
+
+  tmux_bin="$(tmux_profile_tmux_bin)" || return 0
+  "${tmux_bin}" has-session 2>/dev/null || return 0
+  if [[ "${requested}" == none ]]; then
+    print -r -- 'tmux is running: restart it (tmux kill-server) for stock settings'
+  elif "${tmux_bin}" source-file "${TMUX_PROFILE_LINK}"; then
+    print -r -- 'reloaded the running tmux server'
+    [[ "${current}" == none ]] ||
+      print -r -- "settings ${current} made that ${requested} does not override stay until tmux restarts (tmux kill-server)"
+  else
+    print -u2 -- "csm tmux-profile: reload failed; restart tmux to use ${requested}"
+  fi
+}
+
+#
 # Validate the repository contract and startup files without mutating anything.
 # Arguments:
 #   None.
@@ -3184,6 +3346,9 @@ main() {
       ;;
     describe-profile)
       describe_profile "$@"
+      ;;
+    tmux-profile)
+      tmux_profile "$@"
       ;;
     *)
       print -u2 -- "error: unknown command: ${command}"

@@ -382,11 +382,10 @@ These ideas matter, but are not yet shaped enough to promote into active
 milestones:
 
 - secrets-management-aware shell workflows
-- a reusable, opinionated tmux default belongs to dev-container-fortress,
-  modeled on the personal dotfiles `tmux-full` package (sesh, gitmux,
-  Catppuccin); tracked here only as a cross-project dependency. shell-config
-  adds zsh-side hooks (for example a `Ctrl-G` sesh shortcut) only when a
-  concrete need appears
+- tmux profiles belong to dev-container-fortress (its `M5b-7` ported the
+  dotfiles `minimal`, `full`, and `raidboss` packages); shell-config owns only
+  the `csm tmux-profile` switch. zsh-side hooks (for example a `Ctrl-G` sesh
+  shortcut) come only when a concrete need appears
 - WSL2 startup cost from Windows `PATH` entries (accepted, 2026-10-16): the
   first `$commands` lookup hashes about 40 `/mnt/c` directories, about 100ms
   of `00-environment`. This is acceptable and not an issue on the current
